@@ -2,14 +2,14 @@ import { PrismaClient } from "@prisma/client/edge";
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 
-function createPrisma(): PrismaClient | null {
-  if (!process.env.DATABASE_URL) return null;
-  return (
-    globalForPrisma.prisma ??
-    new PrismaClient({ log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"] })
-  );
+export function getPrisma(): PrismaClient | null {
+  const url = process.env.DATABASE_URL;
+  if (!url) return null;
+  if (!globalForPrisma.prisma) {
+    globalForPrisma.prisma = new PrismaClient({
+      datasourceUrl: url,
+      log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+    });
+  }
+  return globalForPrisma.prisma;
 }
-
-export const prisma = createPrisma();
-
-if (prisma && process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;

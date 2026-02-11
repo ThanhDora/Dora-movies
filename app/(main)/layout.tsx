@@ -1,5 +1,7 @@
+import { Suspense } from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import LoginSuccessToast from "@/components/LoginSuccessToast";
 import { getHome } from "@/lib/api";
 import { auth } from "@/lib/auth";
 import { isVip } from "@/lib/vip";
@@ -34,6 +36,7 @@ export default async function MainLayout({
   return (
     <>
       <Header menu={menu} siteTitle={title} />
+      <Suspense fallback={null}><LoginSuccessToast /></Suspense>
       {showAds && adsHeader ? (
         <div className="w-full max-w-[1600px] mx-auto px-4" dangerouslySetInnerHTML={{ __html: adsHeader }} />
       ) : null}

@@ -1,12 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { loginWithCredentials, signInWithGoogle, signInWithFacebook } from "./actions";
 
+const verifyMessages: Record<string, string> = {
+  "1": "Email đã được xác minh. Bạn có thể đăng nhập.",
+  invalid_token: "Link xác minh không hợp lệ.",
+  expired_token: "Link xác minh đã hết hạn. Vui lòng đăng ký lại hoặc gửi lại email xác minh.",
+  missing_token: "Thiếu link xác minh.",
+  verify_failed: "Xác minh thất bại. Vui lòng thử lại hoặc đăng ký lại.",
+};
+
 export default function LoginPage() {
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [verifyMsg, setVerifyMsg] = useState("");
+  useEffect(() => {
+    const verified = searchParams.get("verified");
+    const err = searchParams.get("error");
+    if (verified) setVerifyMsg(verifyMessages[verified] || "Đã xác minh.");
+    if (err && !verified) setVerifyMsg(verifyMessages[err] || "Có lỗi xảy ra.");
+  }, [searchParams]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -23,6 +40,11 @@ export default function LoginPage() {
     <main className="w-full max-w-[1600px] mx-auto px-3 sm:px-4 py-12">
       <div className="max-w-md mx-auto bg-white/5 rounded-xl p-6 border border-white/10">
         <h1 className="text-xl font-bold text-white mb-6">Đăng nhập</h1>
+        {verifyMsg ? (
+          <p className={`text-sm mb-4 ${verifyMsg.includes("hết hạn") || verifyMsg.includes("không hợp lệ") ? "text-amber-400" : "text-green-400"}`}>
+            {verifyMsg}
+          </p>
+        ) : null}
         {error ? (
           <p className="text-red-400 text-sm mb-4">{error}</p>
         ) : null}

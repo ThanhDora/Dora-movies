@@ -12,6 +12,7 @@ export interface DbUser {
   image: string | null;
   role: UserRole;
   vip_until: string | null;
+  email_verified_at: string | null;
   created_at: string;
   updated_at: string;
 }

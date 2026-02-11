@@ -2,9 +2,15 @@ import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import Facebook from "next-auth/providers/facebook";
 import Credentials from "next-auth/providers/credentials";
+import { CredentialsSignin } from "next-auth";
 import { compare } from "bcryptjs";
-import { getUserByEmail, upsertUserFromAuth } from "@/lib/db";
+import { getUserByEmail, getUserById, upsertUserFromAuth } from "@/lib/db";
+import { sendLoginNotificationEmail } from "@/lib/email";
 import type { UserRole } from "@/types/db";
+
+class EmailNotVerifiedError extends CredentialsSignin {
+  code = "email_not_verified";
+}
 
 declare module "next-auth" {
   interface Session {
@@ -47,18 +53,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (typeof pass !== "string") return null;
         const ok = await compare(pass, user.password_hash);
         if (!ok) return null;
+        if (!user.email_verified_at) throw new EmailNotVerifiedError();
         return { id: user.id, email: user.email, name: user.name, image: user.image };
       },
     }),
   ],
   callbacks: {
     async signIn({ user, account, profile }) {
-      if (account?.provider === "credentials") return true;
+      if (account?.provider === "credentials") {
+        if (user?.email) sendLoginNotificationEmail(user.email).catch(() => {});
+        return true;
+      }
       if (!user.email || !account?.providerAccountId) return false;
       const authId = `${account.provider}_${account.providerAccountId}`;
       const name = user.name ?? (profile as { name?: string })?.name ?? null;
       const image = user.image ?? (profile as { picture?: string })?.picture ?? null;
       await upsertUserFromAuth({ authId, email: user.email, name, image });
+      if (user.email) sendLoginNotificationEmail(user.email).catch(() => {});
       return true;
     },
     async jwt({ token, user }) {
@@ -78,6 +89,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = (token.userId as string) ?? "";
         session.user.role = (token.role as UserRole) ?? "free";
         session.user.vip_until = (token.vip_until as string | null) ?? null;
+        const userId = session.user.id;
+        if (userId) {
+          const dbUser = await getUserById(userId);
+          if (dbUser?.image != null) session.user.image = dbUser.image;
+        }
       }
       return session;
     },

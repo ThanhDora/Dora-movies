@@ -4,11 +4,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { search } from "@/lib/api";
 import type { MenuItem } from "@/types";
 import type { SearchResultItem } from "@/types";
-import { isVip } from "@/lib/vip";
 
 function SearchIcon() {
   return (
@@ -188,25 +187,22 @@ export default function Header({
             </nav>
             <div className="hidden md:flex items-center gap-2 shrink-0">
               {status === "loading" ? null : session?.user ? (
-                <>
-                  {isVip(session.user.role, session.user.vip_until) ? (
-                    <span className="px-2 py-1 text-xs font-medium rounded bg-amber-500/20 text-amber-400">VIP</span>
-                  ) : (
-                    <Link href="/vip" className="px-2.5 py-2 text-white/90 font-bold text-sm hover:text-[#ff2a14] transition-colors whitespace-nowrap">
-                      Nâng VIP
-                    </Link>
-                  )}
-                  <Link href="/profile" className="px-2.5 py-2 text-white/90 font-bold text-sm hover:text-[#ff2a14] transition-colors whitespace-nowrap">
-                    {session.user.name || session.user.email}
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => signOut({ callbackUrl: "/" })}
-                    className="px-2.5 py-2 text-white/70 text-sm hover:text-[#ff2a14] transition-colors"
-                  >
-                    Đăng xuất
-                  </button>
-                </>
+                <Link href="/profile" className="flex items-center gap-2 px-2.5 py-2 text-white/90 font-bold text-sm hover:text-[#ff2a14] transition-colors whitespace-nowrap" title={session.user.name || session.user.email}>
+                  <span className="w-8 h-8 rounded-full bg-white/10 border border-white/20 overflow-hidden flex items-center justify-center shrink-0">
+                    {session.user.image ? (
+                      session.user.image.startsWith("data:") ? (
+                        <img src={session.user.image} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <Image src={session.user.image} alt="" width={32} height={32} className="w-full h-full object-cover" />
+                      )
+                    ) : (
+                      <span className="text-sm text-white/80">
+                        {(session.user.name || session.user.email || "?").charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                  </span>
+                  Trang cá nhân
+                </Link>
               ) : (
                 <>
                   <Link href="/login" className="px-2.5 py-2 text-white/90 font-bold text-sm hover:text-[#ff2a14] transition-colors whitespace-nowrap">
@@ -214,9 +210,6 @@ export default function Header({
                   </Link>
                   <Link href="/register" className="px-2.5 py-2 text-white/90 font-bold text-sm hover:text-[#ff2a14] transition-colors whitespace-nowrap">
                     Đăng ký
-                  </Link>
-                  <Link href="/vip" className="px-2.5 py-2 text-white/90 font-bold text-sm hover:text-[#ff2a14] transition-colors whitespace-nowrap">
-                    Nâng VIP
                   </Link>
                 </>
               )}
@@ -318,21 +311,22 @@ export default function Header({
               </ul>
               <div className="p-4 border-t border-white/10 flex flex-col gap-2">
                 {status === "loading" ? null : session?.user ? (
-                  <>
-                    {isVip(session.user.role, session.user.vip_until) ? (
-                      <span className="px-3 py-2 text-amber-400 text-sm font-medium">VIP</span>
-                    ) : (
-                      <Link href="/vip" className="block py-3 text-white font-medium" onClick={closeMenu}>
-                        Nâng VIP
-                      </Link>
-                    )}
-                    <Link href="/profile" className="block py-3 text-white font-medium" onClick={closeMenu}>
-                      {session.user.name || session.user.email}
-                    </Link>
-                    <button type="button" className="block w-full text-left py-3 text-white/70 font-medium" onClick={() => { closeMenu(); signOut({ callbackUrl: "/" }); }}>
-                      Đăng xuất
-                    </button>
-                  </>
+                  <Link href="/profile" className="flex items-center gap-3 py-3 text-white font-medium" onClick={closeMenu}>
+                    <span className="w-10 h-10 rounded-full bg-white/10 border border-white/20 overflow-hidden flex items-center justify-center shrink-0">
+                      {session.user.image ? (
+                        session.user.image.startsWith("data:") ? (
+                          <img src={session.user.image} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <Image src={session.user.image} alt="" width={40} height={40} className="w-full h-full object-cover" />
+                        )
+                      ) : (
+                        <span className="text-base text-white/80">
+                          {(session.user.name || session.user.email || "?").charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                    </span>
+                    Trang cá nhân
+                  </Link>
                 ) : (
                   <>
                     <Link href="/login" className="block py-3 text-white font-medium" onClick={closeMenu}>
@@ -340,9 +334,6 @@ export default function Header({
                     </Link>
                     <Link href="/register" className="block py-3 text-white font-medium" onClick={closeMenu}>
                       Đăng ký
-                    </Link>
-                    <Link href="/vip" className="block py-3 text-white font-medium" onClick={closeMenu}>
-                      Nâng VIP
                     </Link>
                   </>
                 )}

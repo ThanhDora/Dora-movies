@@ -10,6 +10,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
+  const [emailSent, setEmailSent] = useState(true);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -21,15 +22,16 @@ export default function RegisterPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim(), password, name: name.trim() || undefined }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error || "Đăng ký thất bại.");
         setLoading(false);
         return;
       }
+      setEmailSent(data.emailSent !== false);
       setDone(true);
     } catch {
-      setError("Đăng ký thất bại.");
+      setError("Không kết nối được. Kiểm tra mạng hoặc thử lại.");
     }
     setLoading(false);
   }
@@ -38,8 +40,19 @@ export default function RegisterPage() {
     return (
       <main className="w-full max-w-[1600px] mx-auto px-3 sm:px-4 py-12">
         <div className="max-w-md mx-auto bg-white/5 rounded-xl p-6 border border-white/10 text-center">
-          <p className="text-white mb-4">Đăng ký thành công. Bạn có thể đăng nhập.</p>
-          <Link href="/login" className="text-[#ff2a14] hover:underline">Đi tới đăng nhập</Link>
+          <p className="text-green-400 font-medium mb-3">Đăng ký thành công</p>
+          {emailSent ? (
+            <>
+              <p className="text-white mb-2">Chúng tôi đã gửi email xác minh đến hộp thư của bạn.</p>
+              <p className="text-white/80 text-sm mb-1">Vui lòng mở email và nhấn link xác minh. Chỉ khi xác minh xong bạn mới có thể đăng nhập.</p>
+              <p className="text-white/60 text-xs mb-4">Nếu không thấy email, hãy kiểm tra thư mục spam.</p>
+            </>
+          ) : (
+            <p className="text-amber-400 text-sm mb-4">Không gửi được email. Vui lòng mở terminal (npm run dev) để xem link xác minh hoặc kiểm tra RESEND_API_KEY trong .env.</p>
+          )}
+          <Link href="/login" className="inline-block px-4 py-2 rounded-lg bg-[#ff2a14] text-white font-medium hover:bg-[#e02512]">
+            Đi tới đăng nhập
+          </Link>
         </div>
       </main>
     );
