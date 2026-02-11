@@ -7,7 +7,9 @@ import { sendVerificationEmail } from "@/lib/email";
 function toUserMessage(e: unknown): string {
   const msg = e instanceof Error ? e.message : "";
   if (msg.includes("Email already registered")) return "Email này đã được đăng ký.";
-  if (msg.includes("DATABASE_URL")) return "Chưa cấu hình cơ sở dữ liệu. Thêm DATABASE_URL vào file .env rồi khởi động lại.";
+  if (msg.includes("DATABASE_URL") || msg.includes("Can't reach database") || msg.includes("host:5432")) {
+    return "Chưa kết nối được database. Trên Vercel: vào Settings → Environment Variables, thêm DATABASE_URL là connection string Postgres (dạng postgresql://... từ Vercel Postgres / Neon / Supabase).";
+  }
   return msg || "Đăng ký thất bại. Vui lòng thử lại.";
 }
 

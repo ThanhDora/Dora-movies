@@ -54,7 +54,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
       async authorize(credentials) {
         if (!credentials?.email || typeof credentials.email !== "string") return null;
-        const user = await getUserByEmail(credentials.email);
+        let user;
+        try {
+          user = await getUserByEmail(credentials.email);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : "";
+          if (msg.includes("Can't reach database") || msg.includes("host:5432") || msg.includes("DATABASE_URL")) {
+            throw new CredentialsSignin("Chưa kết nối được database. Trên Vercel: cấu hình DATABASE_URL (postgresql://...) trong Environment Variables.");
+          }
+          throw e;
+        }
         if (!user?.password_hash) return null;
         const pass = credentials.password;
         if (typeof pass !== "string") return null;
