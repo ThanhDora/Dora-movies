@@ -60,7 +60,7 @@ export default function RegisterPage() {
 
   return (
     <main className="w-full max-w-[1600px] mx-auto px-3 sm:px-4 py-12">
-      <div className="max-w-md mx-auto bg-white/5 rounded-xl p-6 border border-white/10">
+      <div className="max-w-md mx-auto min-w-0 bg-white/5 rounded-xl p-6 border border-white/10">
         <h1 className="text-xl font-bold text-white mb-6">Đăng ký</h1>
         {error ? <p className="text-red-400 text-sm mb-4">{error}</p> : null}
         <form onSubmit={handleSubmit} className="space-y-4">

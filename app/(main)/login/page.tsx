@@ -38,7 +38,7 @@ export default function LoginPage() {
 
   return (
     <main className="w-full max-w-[1600px] mx-auto px-3 sm:px-4 py-12">
-      <div className="max-w-md mx-auto bg-white/5 rounded-xl p-6 border border-white/10">
+      <div className="max-w-md mx-auto min-w-0 bg-white/5 rounded-xl p-6 border border-white/10">
         <h1 className="text-xl font-bold text-white mb-6">Đăng nhập</h1>
         {verifyMsg ? (
           <p className={`text-sm mb-4 ${verifyMsg.includes("hết hạn") || verifyMsg.includes("không hợp lệ") ? "text-amber-400" : "text-green-400"}`}>
@@ -77,25 +77,27 @@ export default function LoginPage() {
         </form>
         <div className="mt-4 pt-4 border-t border-white/10">
           <p className="text-white/70 text-sm mb-2">Hoặc đăng nhập với</p>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <form action={signInWithGoogle}>
-              <button type="submit" className="h-11 px-4 rounded-lg bg-white/10 text-white text-sm hover:bg-white/20">
+              <button type="submit" className="h-11 px-4 rounded-lg bg-white/10 text-white text-sm hover:bg-white/20 shrink-0">
                 Google
               </button>
             </form>
             <form action={signInWithFacebook}>
-              <button type="submit" className="h-11 px-4 rounded-lg bg-white/10 text-white text-sm hover:bg-white/20">
+              <button type="submit" className="h-11 px-4 rounded-lg bg-white/10 text-white text-sm hover:bg-white/20 shrink-0">
                 Facebook
               </button>
             </form>
           </div>
         </div>
-        <p className="mt-4 text-white/70 text-sm">
-          Chưa có tài khoản? <Link href="/register" className="text-[#ff2a14] hover:underline">Đăng ký</Link>
-        </p>
-        <p className="mt-1 text-white/60 text-sm">
-          <Link href="/forgot-password" className="hover:underline">Quên mật khẩu?</Link>
-        </p>
+        <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:gap-4 gap-2">
+          <p className="text-white/70 text-sm order-2 sm:order-1">
+            <Link href="/forgot-password" className="hover:underline wrap-break-word">Quên mật khẩu?</Link>
+          </p>
+          <p className="text-white/70 text-sm order-1 sm:order-2 sm:border-l sm:border-white/20 sm:pl-4">
+            Chưa có tài khoản? <Link href="/register" className="text-[#ff2a14] hover:underline whitespace-nowrap">Đăng ký</Link>
+          </p>
+        </div>
       </div>
     </main>
   );

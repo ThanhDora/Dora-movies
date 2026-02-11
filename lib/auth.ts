@@ -25,7 +25,13 @@ declare module "next-auth" {
   }
 }
 
-const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || (process.env.NODE_ENV === "development" ? "dev-secret-min-32-chars-long" : undefined);
+const secret =
+  process.env.AUTH_SECRET ||
+  process.env.NEXTAUTH_SECRET ||
+  (process.env.NODE_ENV === "development" ? "dev-secret-min-32-chars-long" : undefined) ||
+  (typeof process.env.NEXTAUTH_URL === "string" && process.env.NEXTAUTH_URL
+    ? Buffer.from(process.env.NEXTAUTH_URL + "fallback-secret-salt", "utf8").toString("base64").slice(0, 32)
+    : "production-fallback-secret-min-32-chars");
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   secret,

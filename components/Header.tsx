@@ -155,7 +155,7 @@ export default function Header({
                   </div>
                 )}
             </div>
-            <nav className="hidden md:flex items-center gap-1 flex-1 justify-start min-w-0">
+            <nav className="hidden md:flex items-center gap-1 flex-1 justify-start min-w-0 flex-wrap">
               {menu.map((item) =>
                 item.children && item.children.length > 0 ? (
                   <div key={item.link} className="flex items-center gap-1.5 px-2.5 py-0">
@@ -187,7 +187,7 @@ export default function Header({
             </nav>
             <div className="hidden md:flex items-center gap-2 shrink-0">
               {status === "loading" ? null : session?.user ? (
-                <Link href="/profile" className="flex items-center gap-2 px-2.5 py-2 text-white/90 font-bold text-sm hover:text-[#ff2a14] transition-colors whitespace-nowrap" title={session.user.name || session.user.email}>
+                <Link href="/profile" className="flex items-center gap-2 px-2.5 py-2 text-white/90 font-bold text-sm hover:text-[#ff2a14] transition-colors whitespace-nowrap min-w-0 truncate max-w-[180px]" title={session.user.name || session.user.email}>
                   <span className="w-8 h-8 rounded-full bg-white/10 border border-white/20 overflow-hidden flex items-center justify-center shrink-0">
                     {session.user.image ? (
                       session.user.image.startsWith("data:") ? (
@@ -205,10 +205,10 @@ export default function Header({
                 </Link>
               ) : (
                 <>
-                  <Link href="/login" className="px-2.5 py-2 text-white/90 font-bold text-sm hover:text-[#ff2a14] transition-colors whitespace-nowrap">
+                  <Link href="/login" className="px-2.5 py-2 text-white/90 font-bold text-sm hover:text-[#ff2a14] transition-colors whitespace-nowrap shrink-0">
                     Đăng nhập
                   </Link>
-                  <Link href="/register" className="px-2.5 py-2 text-white/90 font-bold text-sm hover:text-[#ff2a14] transition-colors whitespace-nowrap">
+                  <Link href="/register" className="px-2.5 py-2 text-white/90 font-bold text-sm hover:text-[#ff2a14] transition-colors whitespace-nowrap shrink-0">
                     Đăng ký
                   </Link>
                 </>
