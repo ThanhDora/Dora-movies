@@ -86,37 +86,42 @@ export async function updateUserImage(userId: string, image: string | null): Pro
   });
 }
 
+interface VerificationTokenClient {
+  verificationToken: {
+    create: (args: { data: { email: string; token: string; expires: Date } }) => Promise<unknown>;
+    findUnique: (args: { where: { token: string }; select: { email: true; expires: true } }) => Promise<{ email: string; expires: Date } | null>;
+    deleteMany: (args: { where: { token: string } }) => Promise<unknown>;
+  };
+}
+
 export async function createVerificationToken(email: string, token: string, expires: Date): Promise<void> {
   const prisma = getPrisma();
   if (!prisma) noDb();
-  const vt = (prisma as { verificationToken?: { create: (args: { data: { email: string; token: string; expires: Date } }) => Promise<unknown> } }).verificationToken;
-  if (!vt) throw new Error("Prisma client missing verificationToken. Run: npx prisma generate");
-  await vt.create({ data: { email: email.toLowerCase(), token, expires } });
+  const client = prisma as unknown as VerificationTokenClient;
+  await client.verificationToken.create({ data: { email: email.toLowerCase(), token, expires } });
 }
 
 export async function getVerificationTokenByToken(token: string): Promise<{ email: string; expires: Date } | null> {
   const prisma = getPrisma();
   if (!prisma) return null;
-  const vt = (prisma as { verificationToken?: { findUnique: (args: { where: { token: string }; select: { email: true; expires: true } }) => Promise<{ email: string; expires: Date } | null> } }).verificationToken;
-  if (!vt) return null;
-  return vt.findUnique({ where: { token }, select: { email: true, expires: true } });
+  const client = prisma as unknown as VerificationTokenClient;
+  return client.verificationToken.findUnique({ where: { token }, select: { email: true, expires: true } });
 }
 
 export async function deleteVerificationToken(token: string): Promise<void> {
   const prisma = getPrisma();
   if (!prisma) noDb();
-  const vt = (prisma as { verificationToken?: { deleteMany: (args: { where: { token: string } }) => Promise<unknown> } }).verificationToken;
-  if (!vt) throw new Error("Prisma client missing verificationToken. Run: npx prisma generate");
-  await vt.deleteMany({ where: { token } });
+  const client = prisma as unknown as VerificationTokenClient;
+  await client.verificationToken.deleteMany({ where: { token } });
 }
 
 export async function setEmailVerified(email: string): Promise<void> {
   const prisma = getPrisma();
   if (!prisma) noDb();
   const normalized = email.trim().toLowerCase();
-  const result = await prisma.user.updateMany({
+  const result = await (prisma as unknown as { user: { updateMany: (args: { where: { email: string }; data: { emailVerifiedAt: Date } }) => Promise<{ count: number }> } }).user.updateMany({
     where: { email: normalized },
-    data: { emailVerifiedAt: new Date() } as { emailVerifiedAt: Date },
+    data: { emailVerifiedAt: new Date() },
   });
   if (process.env.NODE_ENV === "development" && result.count === 0) {
     console.warn("[db] setEmailVerified: no user updated for email:", normalized);
