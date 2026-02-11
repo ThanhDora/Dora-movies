@@ -6,7 +6,7 @@ const siteName = process.env.NEXT_PUBLIC_SITE_NAME;
 export const metadata: Metadata = {
   title: `${siteName} - Xem phim online`,
   description: "Xem phim online miễn phí",
-  icons: { icon: "/logo.png", apple: "/logo.png" },
+  icons: { icon: "/anime.png?v=2" },
 };
 
 export const viewport: Viewport = {
