@@ -1,32 +1,23 @@
-import { auth } from "@/lib/auth";
-import { isAdmin } from "@/lib/vip";
+import { NextRequest, NextResponse } from "next/server";
 
-export default auth((req) => {
+const SESSION_COOKIE_NAMES = ["authjs.session-token", "__Secure-authjs.session-token"];
+
+function hasSessionCookie(cookies: NextRequest["cookies"]): boolean {
+  return SESSION_COOKIE_NAMES.some((name) => cookies.has(name));
+}
+
+export function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
-  const session = req.auth;
-  if (path.startsWith("/admin")) {
-    if (!session?.user?.role || !isAdmin(session.user.role)) {
+  const hasSession = hasSessionCookie(req.cookies);
+  if (path.startsWith("/admin") || path.startsWith("/vip") || path.startsWith("/profile") || path.startsWith("/phim/")) {
+    if (!hasSession) {
       const url = new URL("/login", req.nextUrl.origin);
       url.searchParams.set("callbackUrl", path);
-      return Response.redirect(url);
+      return NextResponse.redirect(url);
     }
   }
-  if (path.startsWith("/vip") || path.startsWith("/profile")) {
-    if (!session) {
-      const url = new URL("/login", req.nextUrl.origin);
-      url.searchParams.set("callbackUrl", path);
-      return Response.redirect(url);
-    }
-  }
-  if (path.startsWith("/phim/")) {
-    if (!session) {
-      const url = new URL("/login", req.nextUrl.origin);
-      url.searchParams.set("callbackUrl", path);
-      return Response.redirect(url);
-    }
-  }
-  return undefined;
-});
+  return NextResponse.next();
+}
 
 export const config = {
   matcher: ["/admin/:path*", "/vip/:path*", "/profile/:path*", "/phim/:path*"],
