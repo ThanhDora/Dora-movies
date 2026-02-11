@@ -34,6 +34,7 @@ export default function LoginPage() {
     const result = await loginWithCredentials(formData);
     setLoading(false);
     if (result.error) setError(result.error);
+    else if ("ok" in result && result.ok && result.url) window.location.href = result.url;
   }
 
   return (

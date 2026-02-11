@@ -6,11 +6,14 @@ import { AuthError } from "next-auth";
 
 export async function loginWithCredentials(formData: FormData) {
   try {
-    await signIn("credentials", {
+    const url = await signIn("credentials", {
       email: formData.get("email") as string,
       password: formData.get("password") as string,
-      redirectTo: "/?login=success",
+      redirectTo: "/profile",
+      redirect: false,
     });
+    if (typeof url === "string" && !url.includes("error") && !url.includes("signin"))
+      return { ok: true, url };
   } catch (e) {
     unstable_rethrow(e);
     const causeMsg = (e as { cause?: { err?: { message?: string } } })?.cause?.err?.message;

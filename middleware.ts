@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const SESSION_COOKIE_NAMES = ["authjs.session-token", "__Secure-authjs.session-token"];
+const SESSION_COOKIE_NAMES = ["authjs.session-token", "__Secure-authjs.session-token", "__Host-authjs.session-token"];
 
 function hasSessionCookie(cookies: NextRequest["cookies"]): boolean {
   return SESSION_COOKIE_NAMES.some((name) => cookies.has(name));
