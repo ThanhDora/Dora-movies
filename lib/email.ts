@@ -1,8 +1,8 @@
 import { Resend } from "resend";
 
 const resendApiKey = process.env.RESEND_API_KEY;
-const fromEmail = process.env.EMAIL_FROM || "onboarding@resend.dev";
-const siteName = process.env.NEXT_PUBLIC_SITE_NAME || "Ophim";
+const fromEmail = process.env.EMAIL_FROM || "movies@dorateam.net";
+const siteName = process.env.NEXT_PUBLIC_SITE_NAME || "Dora Movies";
 
 function getBaseUrl(): string {
   if (process.env.NEXTAUTH_URL) return process.env.NEXTAUTH_URL;

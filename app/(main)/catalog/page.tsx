@@ -4,7 +4,7 @@ import CatalogFilter from "@/components/CatalogFilter";
 import Pagination from "@/components/Pagination";
 
 export const metadata = {
-  title: "Danh sách phim | Ophim",
+  title: "Danh sách phim | Dora Movies",
   description: "Danh sách phim, tìm kiếm và lọc theo thể loại, quốc gia, năm",
 };
 

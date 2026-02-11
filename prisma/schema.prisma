@@ -46,6 +46,21 @@ model User {
   updatedAt       DateTime  @updatedAt @map("updated_at")
   approvedMovies  MovieApproval[] @relation("ApprovedBy")
   payments        Payment[]
+  watchHistory    WatchHistory[]
+}
+
+model WatchHistory {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  movieSlug   String   @map("movie_slug")
+  episodePath String?  @map("episode_path")
+  movieTitle  String   @map("movie_title")
+  posterUrl   String?  @map("poster_url")
+  watchedAt   DateTime @default(now()) @map("watched_at")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([userId, movieSlug])
+  @@index([userId])
+  @@index([userId, watchedAt(sort: Desc)])
 }
 
 model VerificationToken {
@@ -61,7 +76,7 @@ model VerificationToken {
 model MovieApproval {
   id          String         @id @default(uuid())
   slug        String         @unique
-  source      String         @default("ophim1")
+  source      String         @default("doramovies")
   status      ApprovalStatus @default(pending)
   approvedById String?       @map("approved_by")
   approvedAt  DateTime?      @map("approved_at")

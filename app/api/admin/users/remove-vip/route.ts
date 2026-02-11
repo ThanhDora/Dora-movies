@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { isAdmin } from "@/lib/vip";
-import { getUserById, grantVipManual } from "@/lib/db";
+import { getUserById, removeVip } from "@/lib/db";
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -9,18 +9,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const body = await req.json();
-  const { userId, durationDays } = body;
-  if (!userId || !durationDays || typeof durationDays !== "number") {
-    return NextResponse.json({ error: "userId and durationDays required" }, { status: 400 });
+  const userId = typeof body.userId === "string" ? body.userId : null;
+  if (!userId) {
+    return NextResponse.json({ error: "userId required" }, { status: 400 });
   }
   const target = await getUserById(userId);
   if (target && session.user.role === "admin" && target.role === "super_admin") {
     return NextResponse.json({ error: "Admin cannot modify super_admin" }, { status: 403 });
   }
   try {
-    await grantVipManual(userId, durationDays, session.user.id);
+    await removeVip(userId);
     return NextResponse.json({ ok: true });
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 400 });
+  } catch {
+    return NextResponse.json({ error: "User not found or remove failed" }, { status: 400 });
   }
 }

@@ -1,7 +1,12 @@
+import { auth } from "@/lib/auth";
 import { listUsers } from "@/lib/db";
-import GrantVipForm from "./GrantVipForm";
+import AddAdminForm from "../admins/AddAdminForm";
+import UsersTableWithSearch from "./UsersTableWithSearch";
 
 export default async function AdminUsersPage() {
+  const session = await auth();
+  const currentUserId = session?.user?.id ?? "";
+
   let users: { id: string; email: string; name: string | null; role: string; vip_until: string | null }[] = [];
   try {
     users = await listUsers();
@@ -11,31 +16,15 @@ export default async function AdminUsersPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">Quản lý user & cấp VIP</h1>
-      <div className="mb-8 p-4 bg-white/5 rounded-lg border border-white/10">
-        <h2 className="font-bold mb-3">Cấp VIP thủ công</h2>
-        <GrantVipForm users={users} />
+      <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">User & VIP</h1>
+      <p className="text-white/60 text-sm mb-6">
+        Danh sách user. Tìm theo email hoặc tên. Gỡ admin hoặc xóa tài khoản trong cột Thao tác.
+      </p>
+      <div className="rounded-xl border border-white/10 bg-white/5 p-5 mb-6">
+        <h2 className="font-semibold text-white mb-4">Thêm admin</h2>
+        <AddAdminForm currentUserRole={session?.user?.role ?? ""} />
       </div>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left border-b border-white/20">
-            <th className="py-2">Email</th>
-            <th className="py-2">Tên</th>
-            <th className="py-2">Role</th>
-            <th className="py-2">VIP đến</th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.map((u) => (
-            <tr key={u.id} className="border-b border-white/10">
-              <td className="py-2">{u.email}</td>
-              <td className="py-2">{u.name ?? "–"}</td>
-              <td className="py-2">{u.role}</td>
-              <td className="py-2">{u.vip_until ? new Date(u.vip_until).toLocaleDateString("vi-VN") : "–"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <UsersTableWithSearch users={users} currentUserId={currentUserId} currentUserRole={session?.user?.role ?? ""} />
     </div>
   );
 }

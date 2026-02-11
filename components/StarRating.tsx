@@ -22,7 +22,7 @@ export default function StarRating({
   const handleClick = async (value: number) => {
     if (rated) return;
     try {
-      const res = await rateMovie(movieSlug, value);
+      const res = await rateMovie(movieSlug, value, count);
       setScore(parseFloat(res.rating_star));
       setCount(res.rating_count);
       setRated(true);

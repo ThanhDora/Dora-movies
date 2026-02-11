@@ -1,13 +1,15 @@
-import Link from "next/link";
-import Image from "next/image";
-import { getMovie, getEpisode } from "@/lib/api";
-import MovieCard from "@/components/MovieCard";
-import StarRating from "@/components/StarRating";
-import TrailerModal from "@/components/TrailerModal";
+// import Link from "next/link";
+// import Image from "next/image";
+import { getMovie, getEpisode, getWatchUrl } from "@/lib/api";
+import { auth } from "@/lib/auth";
+import { recordWatchHistory } from "@/lib/db";
+// import MovieCard from "@/components/MovieCard";
+// import StarRating from "@/components/StarRating";
+// import TrailerModal from "@/components/TrailerModal";
 import MovieSingleContent from "./MovieSingleContent";
 import EpisodeContent from "./EpisodeContent";
 import { notFound } from "next/navigation";
-import type { Movie, Episode as EpisodeType } from "@/types";
+import type { Movie } from "@/types";
 
 function getYoutubeId(url: string): string | null {
   if (!url || !url.includes("youtube")) return null;
@@ -17,32 +19,6 @@ function getYoutubeId(url: string): string | null {
   } catch {
     return null;
   }
-}
-
-function getWatchUrl(movie: Movie): string {
-  const episodes = movie.episodes || [];
-  if (movie.is_copyright || !episodes.length) return "";
-  const byServer = new Map<string, EpisodeType[]>();
-  episodes.forEach((ep) => {
-    const list = byServer.get(ep.server) || [];
-    list.push(ep);
-    byServer.set(ep.server, list);
-  });
-  const firstServer = Array.from(byServer.keys()).sort()[0];
-  const list = byServer.get(firstServer) || [];
-  const byName = new Map<string, EpisodeType[]>();
-  list.forEach((ep) => {
-    const name = ep.name || "";
-    const arr = byName.get(name) || [];
-    arr.push(ep);
-    byName.set(name, arr);
-  });
-  const names = Array.from(byName.keys()).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  const lastName = names[names.length - 1];
-  const eps = byName.get(lastName) || [];
-  const byType = eps.sort((a, b) => (b.type || "").localeCompare(a.type || ""));
-  const first = byType[0];
-  return first?.url || (movie.url ? `${movie.url}/tap-1-${first?.id}` : "");
 }
 
 export default async function PhimPage({
@@ -65,6 +41,16 @@ export default async function PhimPage({
         notFound();
       }
       if (!data) notFound();
+      const session = await auth();
+      if (session?.user?.id) {
+        recordWatchHistory({
+          userId: session.user.id,
+          movieSlug: segment,
+          episodePath: second,
+          movieTitle: data.currentMovie.name,
+          posterUrl: data.currentMovie.thumb_url || data.currentMovie.poster_url || null,
+        }).catch(() => { });
+      }
       return (
         <EpisodeContent
           currentMovie={data.currentMovie}
@@ -110,7 +96,7 @@ export async function generateMetadata({
         const [, episodeSlug, id] = match;
         const data = await getEpisode(segment, episodeSlug, id);
         return {
-          title: `${data.currentMovie.name} - Tập ${data.episode.name} | Ophim`,
+          title: `${data.currentMovie.name} - Tập ${data.episode.name} | Dora Movies`,
         };
       }
     } catch {
@@ -120,10 +106,10 @@ export async function generateMetadata({
   try {
     const data = await getMovie(segment);
     return {
-      title: `${data.currentMovie.name} | Ophim`,
+      title: `${data.currentMovie.name} | Dora Movies`,
       description: data.currentMovie.content?.replace(/<[^>]*>/g, "").slice(0, 160),
     };
   } catch {
-    return { title: "Phim | Ophim" };
+    return { title: "Phim | Dora Movies" };
   }
 }

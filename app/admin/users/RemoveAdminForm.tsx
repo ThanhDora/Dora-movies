@@ -1,16 +1,21 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
-export default function GrantVipForm({
-  users,
+export default function RemoveAdminForm({
+  admins,
+  currentUserId,
 }: {
-  users: { id: string; email: string }[];
+  admins: { id: string; email: string; role: string }[];
+  currentUserId: string;
 }) {
+  const router = useRouter();
   const [userId, setUserId] = useState("");
-  const [days, setDays] = useState(30);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+
+  const options = admins.filter((a) => a.id !== currentUserId);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -18,15 +23,16 @@ export default function GrantVipForm({
     setLoading(true);
     setMessage("");
     try {
-      const res = await fetch("/api/admin/users/grant-vip", {
+      const res = await fetch("/api/admin/users/remove-admin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, durationDays: days }),
+        body: JSON.stringify({ userId }),
       });
       const data = await res.json();
       if (res.ok) {
-        setMessage("Đã cấp VIP.");
+        setMessage("Đã gỡ quyền admin.");
         setUserId("");
+        router.refresh();
       } else {
         setMessage(data.error || "Lỗi");
       }
@@ -36,38 +42,30 @@ export default function GrantVipForm({
     setLoading(false);
   }
 
+  if (options.length === 0) return null;
+
   return (
     <form onSubmit={submit} className="flex flex-wrap items-end gap-4">
       <div>
-        <label className="block text-white/60 text-xs mb-1.5">User</label>
+        <label className="block text-white/60 text-xs mb-1.5">Admin cần gỡ</label>
         <select
           value={userId}
           onChange={(e) => setUserId(e.target.value)}
           className="bg-white/10 text-white border border-white/15 rounded-lg px-3 py-2.5 min-w-[220px] text-sm focus:outline-none focus:ring-2 focus:ring-[#ff2a14]/50"
           required
         >
-          <option value="">-- Chọn user --</option>
-          {users.map((u) => (
-            <option key={u.id} value={u.id}>{u.email}</option>
+          <option value="">-- Chọn admin --</option>
+          {options.map((u) => (
+            <option key={u.id} value={u.id}>{u.email} ({u.role})</option>
           ))}
         </select>
-      </div>
-      <div>
-        <label className="block text-white/60 text-xs mb-1.5">Số ngày</label>
-        <input
-          type="number"
-          min={1}
-          value={days}
-          onChange={(e) => setDays(Number(e.target.value))}
-          className="bg-white/10 text-white border border-white/15 rounded-lg px-3 py-2.5 w-24 text-sm focus:outline-none focus:ring-2 focus:ring-[#ff2a14]/50"
-        />
       </div>
       <button
         type="submit"
         disabled={loading}
-        className="px-4 py-2.5 rounded-lg bg-[#ff2a14] hover:bg-[#e02512] text-white text-sm font-medium disabled:opacity-50 transition-colors"
+        className="px-4 py-2.5 rounded-lg bg-white/10 hover:bg-red-500/20 text-white text-sm font-medium border border-white/15 disabled:opacity-50 transition-colors"
       >
-        {loading ? "Đang xử lý..." : "Cấp VIP"}
+        {loading ? "Đang xử lý..." : "Gỡ quyền admin"}
       </button>
       {message ? (
         <span className={message.startsWith("Đã") ? "text-emerald-400 text-sm" : "text-red-400 text-sm"}>

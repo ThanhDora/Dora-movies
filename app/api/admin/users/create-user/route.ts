@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { isAdmin } from "@/lib/vip";
 import { createUserAsAdmin } from "@/lib/db";
-import type { UserRole } from "@/types/db";
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -10,16 +9,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const body = await req.json();
-  const { email, name, role } = body;
-  if (!email || typeof email !== "string") {
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  const name = typeof body.name === "string" ? body.name.trim() || undefined : undefined;
+  if (!email) {
     return NextResponse.json({ error: "email required" }, { status: 400 });
   }
-  const r = (role === "super_admin" ? "super_admin" : "admin") as UserRole;
-  if (session.user.role === "admin" && r === "super_admin") {
-    return NextResponse.json({ error: "Only super_admin can add super_admin" }, { status: 403 });
-  }
   try {
-    await createUserAsAdmin({ email: email.trim().toLowerCase(), name: name?.trim(), role: r });
+    await createUserAsAdmin({ email, name, role: "free" });
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 400 });

@@ -85,8 +85,8 @@ export async function generateMetadata({
   try {
     const res = await getRegionBySlug(slug?.[0] ?? "", 1);
     const title = res.region.seo_title || res.region.name;
-    return { title: `${title} | Ophim` };
+    return { title: `${title} | Dora Movies` };
   } catch {
-    return { title: "Quốc gia | Ophim" };
+    return { title: "Quốc gia | Dora Movies" };
   }
 }

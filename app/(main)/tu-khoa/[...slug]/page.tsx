@@ -83,8 +83,8 @@ export async function generateMetadata({
   const { slug } = await params;
   try {
     const res = await getTagBySlug(slug?.[0] ?? "", 1);
-    return { title: `${res.tag.name} | Ophim` };
+    return { title: `${res.tag.name} | Dora Movies` };
   } catch {
-    return { title: "Từ khóa | Ophim" };
+    return { title: "Từ khóa | Dora Movies" };
   }
 }

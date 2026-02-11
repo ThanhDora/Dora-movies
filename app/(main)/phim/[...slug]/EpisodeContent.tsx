@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState, useCallback, useEffect } from "react";
 import type { Movie, Episode } from "@/types";
@@ -50,6 +51,10 @@ export default function EpisodeContent({
   const [playerKey, setPlayerKey] = useState(0);
   const [reportMsg, setReportMsg] = useState("");
   const [reportSent, setReportSent] = useState(false);
+  const RELATED_PER_PAGE = 20;
+  const [relatedPage, setRelatedPage] = useState(1);
+  const totalRelatedPages = Math.max(1, Math.ceil(movie_related.length / RELATED_PER_PAGE));
+  const relatedSlice = movie_related.slice((relatedPage - 1) * RELATED_PER_PAGE, relatedPage * RELATED_PER_PAGE);
 
   const currentServerEpisodes = byServer.get(activeServer) || [];
   const sameSlugSameServer = currentServerEpisodes.filter(
@@ -149,18 +154,33 @@ export default function EpisodeContent({
             const isSelected = activeServer === server;
             return (
               <div key={server} className={isSelected ? "block" : "hidden"}>
-                <div className="max-h-[400px] overflow-y-auto space-y-0">
+                <div className="max-h-[400px] overflow-y-auto space-y-1">
                   {names.map((name) => {
                     const list = byName.get(name) || [];
-                    const best = list.sort((a, b) => (b.type || "").localeCompare(a.type || ""))[0];
+                    const best = [...list].sort((a, b) => (b.type || "").localeCompare(a.type || ""))[0];
                     const isActive = list.some((e) => e.id === currentEpisode.id);
+                    const thumb = currentMovie.thumb_url || currentMovie.poster_url || "";
                     return (
                       <Link
                         key={name}
                         href={best ? `/phim/${currentMovie.slug}/${best.slug}-${best.id}` : "#"}
-                        className={`block min-h-[44px] items-center px-3 py-2 text-sm rounded transition-colors touch-manipulation ${isActive ? "bg-[#c92626] text-white" : "text-white/80 hover:bg-white/10 active:bg-white/10"}`}
+                        className={`flex items-center gap-3 min-h-[72px] px-2 py-2 text-sm rounded transition-colors touch-manipulation ${isActive ? "bg-[#c92626] text-white" : "text-white/80 hover:bg-white/10 active:bg-white/10"}`}
                       >
-                        {name}
+                        <div className="w-12 h-[72px] shrink-0 rounded overflow-hidden bg-[#232328]">
+                          {thumb ? (
+                            <Image
+                              src={thumb}
+                              alt=""
+                              width={48}
+                              height={72}
+                              className="w-full h-full object-cover"
+                              unoptimized={thumb.startsWith("http")}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-white/40 text-xs">Tập</div>
+                          )}
+                        </div>
+                        <span className="font-medium truncate">Tập {name}</span>
                       </Link>
                     );
                   })}
@@ -192,7 +212,28 @@ export default function EpisodeContent({
                 <p className="text-white/70 text-sm">Đã gửi báo lỗi.</p>
               )}
               <h2 className="text-lg font-bold text-white mt-6 mb-3">Có thể bạn thích</h2>
-              <LazyMovieGrid movies={movie_related} />
+              <LazyMovieGrid movies={relatedSlice} />
+              {movie_related.length > RELATED_PER_PAGE && (
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRelatedPage((p) => Math.max(1, p - 1))}
+                    disabled={relatedPage <= 1}
+                    className="min-h-[40px] px-4 py-2 rounded-lg bg-white/10 text-white hover:bg-white/20 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium"
+                  >
+                    Trước
+                  </button>
+                  <span className="text-white/70 text-sm px-2">Trang {relatedPage} / {totalRelatedPages}</span>
+                  <button
+                    type="button"
+                    onClick={() => setRelatedPage((p) => Math.min(totalRelatedPages, p + 1))}
+                    disabled={relatedPage >= totalRelatedPages}
+                    className="min-h-[40px] px-4 py-2 rounded-lg bg-white/10 text-white hover:bg-white/20 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium"
+                  >
+                    Sau
+                  </button>
+                </div>
+              )}
             </div>
             <aside className="w-full lg:w-72 shrink-0">
               <h2 className="text-lg font-bold text-white mb-3">Xem nhiều</h2>

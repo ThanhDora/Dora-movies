@@ -12,26 +12,42 @@ export default async function AdminMoviesPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">Phim chờ duyệt</h1>
+      <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">Phim chờ duyệt</h1>
+      <p className="text-white/60 text-sm mb-6">
+        {list.length === 0
+          ? "Không có phim nào. Chạy sync: POST /api/cron/sync-movies"
+          : `${list.length} phim đang chờ duyệt`}
+      </p>
       {list.length === 0 ? (
-        <p className="text-white/70">Không có phim nào chờ duyệt. Chạy sync: POST /api/cron/sync-movies</p>
+        <div className="rounded-xl border border-white/10 bg-white/5 p-8 text-center text-white/50 text-sm">
+          Chưa có phim chờ duyệt. Gọi API sync để thêm phim mới.
+        </div>
       ) : (
-        <ul className="space-y-2">
-          {list.map((m) => (
-            <li
-              key={m.id}
-              className="flex items-center justify-between gap-4 py-2 border-b border-white/10"
-            >
-              <div>
-                <Link href={`/phim/${m.slug}`} target="_blank" className="text-[#ff2a14] hover:underline">
-                  {m.slug}
-                </Link>
-                <span className="text-white/50 text-sm ml-2">{m.source} · {new Date(m.created_at).toLocaleDateString("vi-VN")}</span>
-              </div>
-              <ApproveRejectButtons id={m.id} />
-            </li>
-          ))}
-        </ul>
+        <div className="rounded-xl border border-white/10 bg-white/5 overflow-hidden">
+          <ul className="divide-y divide-white/10">
+            {list.map((m) => (
+              <li
+                key={m.id}
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-4 hover:bg-white/5 transition-colors"
+              >
+                <div className="min-w-0 flex-1">
+                  <Link
+                    href={`/phim/${m.slug}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-[#ff2a14] hover:underline truncate block"
+                  >
+                    {m.slug}
+                  </Link>
+                  <span className="text-white/50 text-xs mt-0.5 block">
+                    {m.source} · {new Date(m.created_at).toLocaleDateString("vi-VN")}
+                  </span>
+                </div>
+                <ApproveRejectButtons id={m.id} />
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );

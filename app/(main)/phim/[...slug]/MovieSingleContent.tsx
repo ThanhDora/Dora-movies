@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
-import type { Movie } from "@/types";
+import { useState, useMemo } from "react";
+import type { Movie, Episode } from "@/types";
 import LazyWhenInView from "@/components/LazyWhenInView";
 import LazyMovieGrid from "@/components/LazyMovieGrid";
 import StarRating from "@/components/StarRating";
@@ -41,6 +41,34 @@ export default function MovieSingleContent({
   const [trailerOpen, setTrailerOpen] = useState(false);
   const thumb = currentMovie.thumb_url || currentMovie.poster_url || LOADING_GIF;
   const movieUrl = currentMovie.url || `/phim/${currentMovie.slug}`;
+  const episodes = currentMovie.episodes || [];
+  const byServer = useMemo(() => {
+    const m = new Map<string, Episode[]>();
+    episodes.forEach((ep) => {
+      const list = m.get(ep.server) || [];
+      list.push(ep);
+      m.set(ep.server, list);
+    });
+    return m;
+  }, [episodes]);
+  const serverNames = Array.from(byServer.keys()).sort();
+  const firstServerList = serverNames.length ? byServer.get(serverNames[0]) || [] : [];
+  const byName = useMemo(() => {
+    const m = new Map<string, Episode[]>();
+    firstServerList.forEach((ep) => {
+      const name = ep.name || "";
+      const list = m.get(name) || [];
+      list.push(ep);
+      m.set(name, list);
+    });
+    return m;
+  }, [firstServerList]);
+  const episodeNames = Array.from(byName.keys()).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const hasEpisodes = episodeNames.length > 0;
+  const RELATED_PER_PAGE = 20;
+  const [relatedPage, setRelatedPage] = useState(1);
+  const totalRelatedPages = Math.max(1, Math.ceil(movie_related.length / RELATED_PER_PAGE));
+  const relatedSlice = movie_related.slice((relatedPage - 1) * RELATED_PER_PAGE, relatedPage * RELATED_PER_PAGE);
 
   return (
     <>
@@ -94,9 +122,28 @@ export default function MovieSingleContent({
             <p className="mt-2 text-sm text-white/70">
               {(currentMovie.tags || []).map((t, i) => (<span key={t.id}>{i > 0 && ", "}<Link href={t.url || `/tu-khoa/${t.slug}`} className="hover:text-[#ff2a14]">{t.name}</Link></span>))}
             </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {watchUrl && <Link href={watchUrl} className={btnPrimary} title={currentMovie.name}><PlayIcon className="w-4 h-4" /><span>Xem phim</span></Link>}
-              {trailerId && <button type="button" className={btnPrimary} onClick={() => setTrailerOpen(true)}><PlayIcon className="w-4 h-4" /><span>Trailer</span></button>}
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              {hasEpisodes ? (
+                <>
+                  {episodeNames.map((name) => {
+                    const list = byName.get(name) || [];
+                    const best = [...list].sort((a, b) => (b.type || "").localeCompare(a.type || ""))[0];
+                    return best ? (
+                      <Link
+                        key={name}
+                        href={`/phim/${currentMovie.slug}/${best.slug}-${best.id}`}
+                        className="min-h-[44px] inline-flex items-center justify-center px-4 py-2 rounded-lg bg-[#25252b] text-white/90 hover:bg-[#c92626] hover:text-white transition-colors text-sm font-medium touch-manipulation shrink-0"
+                      >
+                        Tập {name}
+                      </Link>
+                    ) : null;
+                  })}
+                </>
+              ) : (
+                <>
+                  {watchUrl && <Link href={watchUrl} className={btnPrimary} title={currentMovie.name}><PlayIcon className="w-4 h-4" /><span>Xem phim</span></Link>}
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -115,7 +162,28 @@ export default function MovieSingleContent({
                   <div className="fb-comments w-full" data-href={movieUrl} data-width="100%" data-numposts={5} data-colorscheme="light" data-lazy="true" />
                 </div>
                 <h2 className="text-lg font-bold text-white mt-6 mb-3">Có thể bạn thích</h2>
-                <LazyMovieGrid movies={movie_related} />
+                <LazyMovieGrid movies={relatedSlice} />
+                {movie_related.length > RELATED_PER_PAGE && (
+                  <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setRelatedPage((p) => Math.max(1, p - 1))}
+                      disabled={relatedPage <= 1}
+                      className="min-h-[40px] px-4 py-2 rounded-lg bg-white/10 text-white hover:bg-white/20 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium"
+                    >
+                      Trước
+                    </button>
+                    <span className="text-white/70 text-sm px-2">Trang {relatedPage} / {totalRelatedPages}</span>
+                    <button
+                      type="button"
+                      onClick={() => setRelatedPage((p) => Math.min(totalRelatedPages, p + 1))}
+                      disabled={relatedPage >= totalRelatedPages}
+                      className="min-h-[40px] px-4 py-2 rounded-lg bg-white/10 text-white hover:bg-white/20 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium"
+                    >
+                      Sau
+                    </button>
+                  </div>
+                )}
               </div>
               <aside className="w-full lg:w-72 shrink-0">
                 <h2 className="text-lg font-bold text-white mb-3">Xem nhiều</h2>

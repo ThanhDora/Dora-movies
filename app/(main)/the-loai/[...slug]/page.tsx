@@ -85,8 +85,8 @@ export async function generateMetadata({
   try {
     const res = await getCategoryBySlug(slug?.[0] ?? "", 1);
     const title = res.category.seo_title || res.category.name;
-    return { title: `${title} | Ophim` };
+    return { title: `${title} | Dora Movies` };
   } catch {
-    return { title: "Thể loại | Ophim" };
+    return { title: "Thể loại | Dora Movies" };
   }
 }

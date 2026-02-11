@@ -18,7 +18,7 @@ export default async function MainLayout({
     !session?.user || !isVip(session.user.role, session.user.vip_until ?? null);
 
   let menu: { name: string; link: string; children?: { name: string; link: string }[] }[] = [];
-  let title = "Ophim";
+  let title = "Dora Movies";
   let footerHtml = "";
   let adsHeader = "";
   let adsCatfish = "";

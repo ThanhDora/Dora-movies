@@ -108,7 +108,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const userId = session.user.id;
         if (userId) {
           const dbUser = await getUserById(userId);
-          if (dbUser?.image != null) session.user.image = dbUser.image;
+          if (dbUser) {
+            if (dbUser.image != null) session.user.image = dbUser.image;
+            session.user.name = dbUser.name ?? session.user.name;
+          }
         }
       }
       return session;

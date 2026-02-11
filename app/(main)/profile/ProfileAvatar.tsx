@@ -96,17 +96,17 @@ export default function ProfileAvatar({
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={loading}
-        className="w-20 h-20 rounded-full bg-white/10 border-2 border-white/20 overflow-hidden flex items-center justify-center hover:border-[#ff2a14] transition-colors disabled:opacity-50"
+        className="w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-white/10 border-2 border-white/20 overflow-hidden flex items-center justify-center hover:border-[#ff2a14] transition-colors disabled:opacity-50"
         aria-label="Đổi ảnh đại diện"
       >
         {image ? (
           isDataUrl ? (
             <img src={image} alt="" className="w-full h-full object-cover" />
           ) : (
-            <Image src={image} alt="" width={80} height={80} className="w-full h-full object-cover" />
+            <Image src={image} alt="" width={128} height={128} className="w-full h-full object-cover" />
           )
         ) : (
-          <span className="text-3xl font-bold text-white/60">{initial}</span>
+          <span className="text-4xl sm:text-5xl font-bold text-white/60">{initial}</span>
         )}
       </button>
       <input
@@ -116,7 +116,7 @@ export default function ProfileAvatar({
         className="hidden"
         onChange={handleChange}
       />
-      <span className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-[#ff2a14] flex items-center justify-center text-white text-xs">
+      <span className="absolute bottom-0 right-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#ff2a14] flex items-center justify-center text-white text-xs">
         {loading ? "..." : "✎"}
       </span>
       {error ? <p className="text-red-400 text-xs mt-1 text-center">{error}</p> : null}

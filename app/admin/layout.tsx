@@ -1,7 +1,8 @@
 import { auth } from "@/lib/auth";
-import { redirect } from "next/navigation";
 import { isAdmin } from "@/lib/vip";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import AdminSidebar from "./AdminSidebar";
 
 export default async function AdminLayout({
   children,
@@ -15,14 +16,18 @@ export default async function AdminLayout({
 
   return (
     <div className="min-h-screen bg-[#0a0d0e] text-white">
-      <nav className="border-b border-white/10 px-4 py-3 flex gap-4">
-        <Link href="/admin" className="font-bold hover:text-[#ff2a14]">Dashboard</Link>
-        <Link href="/admin/movies" className="hover:text-[#ff2a14]">Phim chờ duyệt</Link>
-        <Link href="/admin/users" className="hover:text-[#ff2a14]">User & VIP</Link>
-        <Link href="/admin/admins" className="hover:text-[#ff2a14]">Thêm admin</Link>
-        <Link href="/" className="ml-auto text-white/70 hover:text-white">Về trang chủ</Link>
-      </nav>
-      <main className="p-4 max-w-[1200px] mx-auto">{children}</main>
+      <AdminSidebar />
+      <header className="md:hidden sticky top-0 z-30 border-b border-white/10 bg-[#0d1012] px-4 py-3 flex items-center gap-2 flex-wrap">
+        <Link href="/admin" className="font-bold text-white">Dora Admin</Link>
+        <Link href="/admin/movies" className="text-sm text-white/80 hover:text-[#ff2a14]">Phim</Link>
+        <Link href="/admin/users" className="text-sm text-white/80 hover:text-[#ff2a14]">User</Link>
+        <Link href="/admin/admins" className="text-sm text-white/80 hover:text-[#ff2a14]">Thêm admin</Link>
+        <Link href="/profile" className="text-sm text-white/60 hover:text-white ml-auto">Cá nhân</Link>
+        <Link href="/" className="text-sm text-white/60 hover:text-white">Trang chủ</Link>
+      </header>
+      <main className="md:pl-72 lg:pl-80 min-h-screen">
+        <div className="p-4 md:p-8 lg:p-10 max-w-[1200px] md:max-w-[1400px] lg:max-w-[1600px]">{children}</div>
+      </main>
     </div>
   );
 }

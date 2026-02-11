@@ -21,7 +21,7 @@ CREATE INDEX idx_users_auth_id ON users(auth_id);
 CREATE TABLE movie_approvals (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   slug TEXT UNIQUE NOT NULL,
-  source TEXT NOT NULL DEFAULT 'ophim1',
+  source TEXT NOT NULL DEFAULT 'doramovies',
   status approval_status NOT NULL DEFAULT 'pending',
   approved_by UUID REFERENCES users(id),
   approved_at TIMESTAMPTZ,

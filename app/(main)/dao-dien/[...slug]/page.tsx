@@ -83,8 +83,8 @@ export async function generateMetadata({
   const { slug } = await params;
   try {
     const res = await getDirectorBySlug(slug?.[0] ?? "", 1);
-    return { title: `${res.person.name} | Ophim` };
+    return { title: `${res.person.name} | Dora Movies` };
   } catch {
-    return { title: "Đạo diễn | Ophim" };
+    return { title: "Đạo diễn | Dora Movies" };
   }
 }

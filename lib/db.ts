@@ -86,6 +86,24 @@ export async function updateUserImage(userId: string, image: string | null): Pro
   });
 }
 
+export async function updateUserName(userId: string, name: string | null): Promise<void> {
+  const prisma = getPrisma();
+  if (!prisma) noDb();
+  await prisma.user.update({
+    where: { id: userId },
+    data: { name: name?.trim() || null },
+  });
+}
+
+export async function updateUserPassword(userId: string, passwordHash: string): Promise<void> {
+  const prisma = getPrisma();
+  if (!prisma) noDb();
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash },
+  });
+}
+
 interface VerificationTokenClient {
   verificationToken: {
     create: (args: { data: { email: string; token: string; expires: Date } }) => Promise<unknown>;
@@ -256,7 +274,7 @@ export async function getPaymentById(id: string): Promise<{ user_id: string; pla
   return { user_id: p.userId, plan_id: p.planId, status: p.status };
 }
 
-export async function insertMovieApprovals(slugs: string[], source = "ophim1"): Promise<number> {
+export async function insertMovieApprovals(slugs: string[], source = "doramovies"): Promise<number> {
   const prisma = getPrisma();
   if (!prisma) return 0;
   if (slugs.length === 0) return 0;
@@ -320,6 +338,14 @@ export async function updateUserRole(userId: string, role: UserRole): Promise<vo
   });
 }
 
+export async function deleteUser(userId: string): Promise<void> {
+  const prisma = getPrisma();
+  if (!prisma) noDb();
+  await prisma.payment.deleteMany({ where: { userId } });
+  await prisma.movieApproval.updateMany({ where: { approvedById: userId }, data: { approvedById: null } });
+  await prisma.user.delete({ where: { id: userId } });
+}
+
 export async function grantVipManual(
   userId: string,
   durationDays: number,
@@ -357,6 +383,15 @@ export async function grantVipManual(
       },
     });
   }
+}
+
+export async function removeVip(userId: string): Promise<void> {
+  const prisma = getPrisma();
+  if (!prisma) noDb();
+  await prisma.user.update({
+    where: { id: userId },
+    data: { role: "free", vipUntil: null },
+  });
 }
 
 export async function createUserAsAdmin(params: {
@@ -402,4 +437,62 @@ export async function registerUser(params: {
     },
   });
   return toDbUser(u);
+}
+
+export interface WatchHistoryItem {
+  movieSlug: string;
+  episodePath: string | null;
+  movieTitle: string;
+  posterUrl: string | null;
+  watchedAt: string;
+}
+
+export async function recordWatchHistory(params: {
+  userId: string;
+  movieSlug: string;
+  episodePath?: string | null;
+  movieTitle: string;
+  posterUrl?: string | null;
+}): Promise<void> {
+  const prisma = getPrisma();
+  if (!prisma) return;
+  try {
+    await prisma.watchHistory.upsert({
+      where: {
+        userId_movieSlug: { userId: params.userId, movieSlug: params.movieSlug },
+      },
+      create: {
+        userId: params.userId,
+        movieSlug: params.movieSlug,
+        episodePath: params.episodePath ?? null,
+        movieTitle: params.movieTitle,
+        posterUrl: params.posterUrl ?? null,
+      },
+      update: {
+        episodePath: params.episodePath ?? null,
+        movieTitle: params.movieTitle,
+        posterUrl: params.posterUrl ?? null,
+        watchedAt: new Date(),
+      },
+    });
+  } catch {
+    //
+  }
+}
+
+export async function getWatchHistory(userId: string, limit = 24): Promise<WatchHistoryItem[]> {
+  const prisma = getPrisma();
+  if (!prisma) return [];
+  const rows = await prisma.watchHistory.findMany({
+    where: { userId },
+    orderBy: { watchedAt: "desc" },
+    take: limit,
+  });
+  return rows.map((r: { movieSlug: string; episodePath: string | null; movieTitle: string; posterUrl: string | null; watchedAt: Date }) => ({
+    movieSlug: r.movieSlug,
+    episodePath: r.episodePath,
+    movieTitle: r.movieTitle,
+    posterUrl: r.posterUrl,
+    watchedAt: r.watchedAt.toISOString(),
+  }));
 }
