@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+html {
+  color-scheme: dark;
+}
+
 .swiper-container .swiper-button-next,
 .swiper-container .swiper-button-prev {
   background: transparent !important;
