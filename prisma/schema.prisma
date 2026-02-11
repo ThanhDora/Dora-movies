@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  free
+  vip
+  admin
+  super_admin
+}
+
+enum ApprovalStatus {
+  pending
+  approved
+  rejected
+}
+
+enum PaymentGateway {
+  vnpay
+  momo
+  manual
+}
+
+enum PaymentStatus {
+  pending
+  completed
+  failed
+}
+
+model User {
+  id           String    @id @default(uuid())
+  authId       String?   @unique @map("auth_id")
+  email        String    @unique
+  passwordHash String?   @map("password_hash")
+  name         String?
+  image        String?
+  role         UserRole  @default(free)
+  vipUntil     DateTime? @map("vip_until")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  approvedMovies MovieApproval[] @relation("ApprovedBy")
+  payments     Payment[]
+}
+
+model MovieApproval {
+  id          String         @id @default(uuid())
+  slug        String         @unique
+  source      String         @default("ophim1")
+  status      ApprovalStatus @default(pending)
+  approvedById String?       @map("approved_by")
+  approvedAt  DateTime?      @map("approved_at")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  approvedBy  User?          @relation("ApprovedBy", fields: [approvedById], references: [id])
+  @@index([slug])
+  @@index([status])
+}
+
+model VipPlan {
+  id           String    @id @default(uuid())
+  name         String
+  durationDays Int       @map("duration_days")
+  amount       Int
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  payments     Payment[]
+}
+
+model Payment {
+  id                    String        @id @default(uuid())
+  userId                String        @map("user_id")
+  planId                String        @map("plan_id")
+  amount                Int
+  gateway               PaymentGateway
+  gatewayTransactionId  String?       @map("gateway_transaction_id")
+  status                PaymentStatus @default(pending)
+  paidAt                DateTime?     @map("paid_at")
+  createdAt             DateTime      @default(now()) @map("created_at")
+  user                  User          @relation(fields: [userId], references: [id])
+  plan                  VipPlan       @relation(fields: [planId], references: [id])
+  @@index([userId])
+}

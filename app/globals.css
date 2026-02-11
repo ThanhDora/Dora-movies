@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+.swiper-container .swiper-button-next,
+.swiper-container .swiper-button-prev {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+.swiper-container .swiper-button-next:hover,
+.swiper-container .swiper-button-prev:hover {
+  background: transparent !important;
+  background-color: transparent !important;
+  border-radius: 0 !important;
+}
+.swiper-container .swiper-button-next::before,
+.swiper-container .swiper-button-prev::before,
+.swiper-container .swiper-button-next::after,
+.swiper-container .swiper-button-prev::after {
+  background: transparent !important;
+  background-color: transparent !important;
+  border-radius: 0 !important;
+}
+.swiper-container .swiper-button-next *,
+.swiper-container .swiper-button-prev * {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+.swiper-container .swiper-button-next .swiper-navigation-icon,
+.swiper-container .swiper-button-prev .swiper-navigation-icon,
+.swiper-container .swiper-button-next svg,
+.swiper-container .swiper-button-prev svg {
+  transition: transform 0.2s ease;
+}
+.swiper-container .swiper-button-next:hover .swiper-navigation-icon,
+.swiper-container .swiper-button-prev:hover .swiper-navigation-icon,
+.swiper-container .swiper-button-next:hover svg,
+.swiper-container .swiper-button-prev:hover svg {
+  transform: scale(1.25);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}

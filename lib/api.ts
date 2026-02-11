@@ -1,0 +1,597 @@
+import type {
+  Movie,
+  Episode,
+  Category,
+  Region,
+  Tag,
+  Actor,
+  Director,
+  Catalog,
+  HomeData,
+  CatalogParams,
+  PaginatedResponse,
+  SearchResultItem,
+  RateResponse,
+} from "@/types";
+import { getApprovedMovieSlugs } from "@/lib/db";
+
+const BASE = process.env.NEXT_PUBLIC_API_URL;
+const FETCH_TIMEOUT = 8000;
+
+async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
+  const url = path.startsWith("http") ? path : `${BASE}${path}`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+  const res = await fetch(url, {
+    ...options,
+    signal: controller.signal,
+    headers: { "Content-Type": "application/json", ...options?.headers },
+  });
+  clearTimeout(timeout);
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
+type OphimV1List = {
+  status: boolean;
+  message: string;
+  data: {
+    titlePage?: string;
+    items: unknown[];
+    params: {
+      pagination: {
+        totalItems: number;
+        totalItemsPerPage: number;
+        currentPage: number;
+        pageRanges?: number;
+      };
+    };
+    APP_DOMAIN_CDN_IMAGE: string;
+    APP_DOMAIN_FRONTEND?: string;
+  };
+};
+
+type OphimRawItem = Record<string, unknown>;
+
+type OphimV1Movie = {
+  status: boolean;
+  message: string;
+  data: {
+    item: OphimRawItem;
+    APP_DOMAIN_CDN_IMAGE: string;
+  };
+};
+
+type OphimV1SimpleList = {
+  status: boolean;
+  message: string;
+  data: unknown[] | { items: unknown[] };
+};
+
+function slugify(input: string): string {
+  return input
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function hash32(str: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function cdnMovieUrl(cdnBase: string, filename?: string): string {
+  if (!filename) return "";
+  if (filename.startsWith("http")) return filename;
+  return `${cdnBase}/uploads/movies/${filename}`;
+}
+
+function mapCategoryRef(ref: OphimRawItem): Category {
+  const slug = String(ref.slug || "");
+  return {
+    id: slug,
+    name: String(ref.name || ""),
+    slug,
+    url: `/the-loai/${slug}`,
+  };
+}
+
+function mapRegionRef(ref: OphimRawItem): Region {
+  const slug = String(ref.slug || "");
+  return {
+    id: slug,
+    name: String(ref.name || ""),
+    slug,
+    url: `/quoc-gia/${slug}`,
+  };
+}
+
+function buildEpisodes(movieSlug: string, rawEpisodes: unknown[]): Episode[] {
+  const out: Episode[] = [];
+  (rawEpisodes || []).forEach((group: unknown) => {
+    const g = group as OphimRawItem;
+    const serverName = String(g.server_name || "");
+    const serverData = Array.isArray(g.server_data) ? g.server_data : [];
+    serverData.forEach((sd: unknown) => {
+      const s = sd as OphimRawItem;
+      const name = String(s.name || "");
+      const slug = String(s.slug || name);
+      if (s.link_embed) {
+        const id = hash32(`${serverName}:${slug}:embed`);
+        out.push({
+          id,
+          name,
+          slug,
+          server: serverName,
+          type: "embed",
+          link: String(s.link_embed),
+          url: `/phim/${movieSlug}/${slug}-${id}`,
+        });
+      }
+      if (s.link_m3u8) {
+        const id = hash32(`${serverName}:${slug}:m3u8`);
+        out.push({
+          id,
+          name,
+          slug,
+          server: serverName,
+          type: "m3u8",
+          link: String(s.link_m3u8),
+          url: `/phim/${movieSlug}/${slug}-${id}`,
+        });
+      }
+    });
+  });
+  return out;
+}
+
+function mapItemToMovie(item: OphimRawItem, cdnBase: string): Movie {
+  const slug = String(item.slug || "");
+  const categories = Array.isArray(item.category) ? item.category.map(mapCategoryRef) : [];
+  const regions = Array.isArray(item.country) ? item.country.map(mapRegionRef) : [];
+  const actorsRaw = Array.isArray(item.actor) ? (item.actor as string[]) : [];
+  const directorsRaw = Array.isArray(item.director) ? (item.director as string[]) : [];
+  const actors: Actor[] = actorsRaw
+    .filter(Boolean)
+    .map((name: string, idx: number) => {
+      const slugA = slugify(name) || String(idx);
+      return { id: slugA, name, slug: slugA, url: `/dien-vien/${slugA}` };
+    });
+  const directors: Director[] = directorsRaw
+    .filter(Boolean)
+    .map((name: string, idx: number) => {
+      const slugD = slugify(name) || String(idx);
+      return { id: slugD, name, slug: slugD, url: `/dao-dien/${slugD}` };
+    });
+
+  return {
+    id: String(item._id || slug),
+    slug,
+    name: String(item.name || ""),
+    origin_name: String(item.origin_name || ""),
+    thumb_url: cdnMovieUrl(cdnBase, item.thumb_url as string | undefined),
+    poster_url: cdnMovieUrl(cdnBase, item.poster_url as string | undefined),
+    url: `/phim/${slug}`,
+    content: item.content ? String(item.content) : undefined,
+    publish_year: item.year ? Number(item.year) : undefined,
+    quality: item.quality ? String(item.quality) : undefined,
+    language: item.lang ? String(item.lang) : undefined,
+    type: item.type ? String(item.type) : undefined,
+    episode_current: item.episode_current ? String(item.episode_current) : undefined,
+    episode_total: item.episode_total ? String(item.episode_total) : undefined,
+    episode_time: item.time ? String(item.time) : undefined,
+    status: item.status ? String(item.status) : undefined,
+    view_total: item.view ? Number(item.view) : undefined,
+    is_copyright: typeof item.is_copyright === "boolean" ? item.is_copyright : undefined,
+    notify: item.notify ? String(item.notify) : undefined,
+    showtimes: item.showtimes ? String(item.showtimes) : undefined,
+    trailer_url: item.trailer_url ? String(item.trailer_url) : undefined,
+    categories,
+    regions,
+    tags: [],
+    actors,
+    directors,
+    episodes: Array.isArray(item.episodes) ? buildEpisodes(slug, item.episodes) : [],
+    rating_star: 0,
+    rating_count: 0,
+  };
+}
+
+function toPaginatedResponse(
+  items: unknown[],
+  cdnBase: string,
+  page: number,
+  totalItems: number,
+  perPage: number,
+  path: string,
+  query: Record<string, string>
+): PaginatedResponse<Movie> {
+  const lastPage = Math.max(1, Math.ceil(totalItems / perPage));
+  const make = (p: number) => {
+    const q = new URLSearchParams(query);
+    q.set("page", String(p));
+    return `${path}?${q.toString()}`;
+  };
+  const links: { url: string | null; label: string; active: boolean }[] = [];
+  const windowSize = 2;
+  const start = Math.max(1, page - windowSize);
+  const end = Math.min(lastPage, page + windowSize);
+  if (start > 1) links.push({ url: make(1), label: "1", active: page === 1 });
+  if (start > 2) links.push({ url: null, label: "...", active: false });
+  for (let p = start; p <= end; p++) {
+    links.push({ url: make(p), label: String(p), active: p === page });
+  }
+  if (end < lastPage - 1) links.push({ url: null, label: "...", active: false });
+  if (end < lastPage) links.push({ url: make(lastPage), label: String(lastPage), active: page === lastPage });
+
+  return {
+    data: items.map((it) => mapItemToMovie(it as OphimRawItem, cdnBase)),
+    current_page: page,
+    last_page: lastPage,
+    per_page: perPage,
+    total: totalItems,
+    from: (page - 1) * perPage + 1,
+    to: Math.min(page * perPage, totalItems),
+    path,
+    first_page_url: make(1),
+    last_page_url: make(lastPage),
+    next_page_url: page < lastPage ? make(page + 1) : null,
+    prev_page_url: page > 1 ? make(page - 1) : null,
+    links,
+  };
+}
+
+function mapSort(sorts?: string): { sort_field?: string; sort_type?: string } {
+  if (sorts === "create") return { sort_field: "created.time", sort_type: "desc" };
+  if (sorts === "year") return { sort_field: "year", sort_type: "desc" };
+  if (sorts === "view") return { sort_field: "view", sort_type: "desc" };
+  if (sorts === "update") return { sort_field: "modified.time", sort_type: "desc" };
+  return { sort_field: "modified.time", sort_type: "desc" };
+}
+
+function filterByApproved<T extends { slug: string }>(items: T[], approved: Set<string>): T[] {
+  if (approved.size === 0) return items;
+  return items.filter((m) => approved.has(m.slug));
+}
+
+export async function getHome(): Promise<HomeData> {
+  const [cats, regs, latest, single, series, approvedSet] = await Promise.all([
+    fetchApi<OphimV1SimpleList>("/v1/api/the-loai"),
+    fetchApi<OphimV1SimpleList>("/v1/api/quoc-gia"),
+    fetchApi<OphimV1List>("/v1/api/danh-sach/phim-moi-cap-nhat?page=1"),
+    fetchApi<OphimV1List>("/v1/api/danh-sach/phim-le?page=1"),
+    fetchApi<OphimV1List>("/v1/api/danh-sach/phim-bo?page=1"),
+    getApprovedMovieSlugs(),
+  ]);
+
+  const categoriesRaw = Array.isArray(cats.data) ? cats.data : cats.data.items;
+  const regionsRaw = Array.isArray(regs.data) ? regs.data : regs.data.items;
+
+  const categoryMenu = (categoriesRaw || []).map((c: unknown) => {
+    const row = c as OphimRawItem;
+    return { name: String(row.name || ""), link: `/the-loai/${String(row.slug || "")}` };
+  });
+  const regionMenu = (regionsRaw || []).map((c: unknown) => {
+    const row = c as OphimRawItem;
+    return { name: String(row.name || ""), link: `/quoc-gia/${String(row.slug || "")}` };
+  });
+
+  const menu = [
+    { name: "Trang chủ", link: "/" },
+    { name: "Cập nhật", link: "/danh-sach/phim-moi-cap-nhat" },
+    { name: "Phim lẻ", link: "/danh-sach/phim-le" },
+    { name: "Phim bộ", link: "/danh-sach/phim-bo" },
+    { name: "TV Shows", link: "/danh-sach/tv-shows" },
+    { name: "Thể loại", link: "/the-loai", children: categoryMenu },
+    { name: "Quốc gia", link: "/quoc-gia", children: regionMenu },
+  ];
+
+  const cdnLatest = latest.data.APP_DOMAIN_CDN_IMAGE;
+  const cdnSingle = single.data.APP_DOMAIN_CDN_IMAGE;
+  const cdnSeries = series.data.APP_DOMAIN_CDN_IMAGE;
+
+  let latestMovies = latest.data.items.map((it) => mapItemToMovie(it as OphimRawItem, cdnLatest));
+  let singleMovies = single.data.items.map((it) => mapItemToMovie(it as OphimRawItem, cdnSingle));
+  let seriesMovies = series.data.items.map((it) => mapItemToMovie(it as OphimRawItem, cdnSeries));
+  latestMovies = filterByApproved(latestMovies, approvedSet);
+  singleMovies = filterByApproved(singleMovies, approvedSet);
+  seriesMovies = filterByApproved(seriesMovies, approvedSet);
+
+  return {
+    menu,
+    title: "Ophim1",
+    slider: { label: "Phim mới", data: latestMovies.slice(0, 10) },
+    sections: [
+      { label: "Phim mới cập nhật", show_template: "section_thumb", data: latestMovies },
+      {
+        label: "Phim lẻ",
+        show_template: "section_side",
+        data: singleMovies,
+        topview: singleMovies.slice(0, 10),
+        link: "/danh-sach/phim-le",
+      },
+      {
+        label: "Phim bộ",
+        show_template: "section_side",
+        data: seriesMovies,
+        topview: seriesMovies.slice(0, 10),
+        link: "/danh-sach/phim-bo",
+      },
+    ],
+    settings: {},
+  };
+}
+
+export async function search(q: string): Promise<SearchResultItem[]> {
+  if (!q.trim()) return [];
+  const params = new URLSearchParams({ keyword: q.trim(), page: "1" });
+  const [res, approvedSet] = await Promise.all([
+    fetchApi<OphimV1List>(`/v1/api/tim-kiem?${params}`),
+    getApprovedMovieSlugs(),
+  ]);
+  const cdn = res.data.APP_DOMAIN_CDN_IMAGE;
+  let items = (res.data.items || []) as OphimRawItem[];
+  if (approvedSet.size > 0) items = items.filter((it) => approvedSet.has(String(it.slug || "")));
+  return items.slice(0, 5).map((row) => ({
+    title: String(row.name || ""),
+    original_title: String(row.origin_name || ""),
+    year: row.year ? Number(row.year) : undefined,
+    total_episode: row.episode_total ? String(row.episode_total) : undefined,
+    image: cdnMovieUrl(cdn, row.thumb_url as string | undefined),
+    image_poster: cdnMovieUrl(cdn, row.poster_url as string | undefined),
+    slug: `/phim/${String(row.slug || "")}`,
+  }));
+}
+
+export async function getCatalog(
+  params: CatalogParams
+): Promise<PaginatedResponse<Movie>> {
+  const page = params.page || 1;
+  const q = new URLSearchParams({ page: String(page) });
+  if (params.categorys) q.set("category", params.categorys);
+  if (params.regions) q.set("country", params.regions);
+  if (params.years) q.set("year", params.years);
+  if (params.types) q.set("type", params.types);
+  const sort = mapSort(params.sorts);
+  if (sort.sort_field) q.set("sort_field", sort.sort_field);
+  if (sort.sort_type) q.set("sort_type", sort.sort_type);
+
+  const endpoint = params.search
+    ? `/v1/api/tim-kiem?keyword=${encodeURIComponent(params.search)}&${q.toString()}`
+    : `/v1/api/danh-sach/phim-moi-cap-nhat?${q.toString()}`;
+
+  const [res, approvedSet] = await Promise.all([
+    fetchApi<OphimV1List>(endpoint),
+    getApprovedMovieSlugs(),
+  ]);
+  const p = res.data.params.pagination;
+  const perPage = p.totalItemsPerPage;
+  let items = res.data.items as OphimRawItem[];
+  if (approvedSet.size > 0) {
+    items = items.filter((it) => approvedSet.has(String(it.slug || "")));
+  }
+  const totalItems = items.length;
+  const query: Record<string, string> = {};
+  if (params.search) query.search = params.search;
+  if (params.categorys) query.categorys = params.categorys;
+  if (params.regions) query.regions = params.regions;
+  if (params.years) query.years = params.years;
+  if (params.types) query.types = params.types;
+  if (params.sorts) query.sorts = params.sorts;
+  const start = (page - 1) * perPage;
+  const paged = items.slice(start, start + perPage);
+  return toPaginatedResponse(
+    paged as unknown[],
+    res.data.APP_DOMAIN_CDN_IMAGE,
+    page,
+    totalItems,
+    perPage,
+    "/catalog",
+    query
+  );
+}
+
+export async function getCategories(): Promise<Category[]> {
+  const res = await fetchApi<OphimV1SimpleList>("/v1/api/the-loai");
+  const list = Array.isArray(res.data) ? res.data : res.data.items;
+  return (list || []).map((c: unknown) => {
+    const row = c as OphimRawItem;
+    return {
+      id: String(row.slug || ""),
+      name: String(row.name || ""),
+      slug: String(row.slug || ""),
+      url: `/the-loai/${String(row.slug || "")}`,
+    };
+  });
+}
+
+export async function getRegions(): Promise<Region[]> {
+  const res = await fetchApi<OphimV1SimpleList>("/v1/api/quoc-gia");
+  const list = Array.isArray(res.data) ? res.data : res.data.items;
+  return (list || []).map((c: unknown) => {
+    const row = c as OphimRawItem;
+    return {
+      id: String(row.slug || ""),
+      name: String(row.name || ""),
+      slug: String(row.slug || ""),
+      url: `/quoc-gia/${String(row.slug || "")}`,
+    };
+  });
+}
+
+export async function getYears(): Promise<number[]> {
+  const year = new Date().getFullYear();
+  const out: number[] = [];
+  for (let y = year; y >= 1970; y--) out.push(y);
+  return out;
+}
+
+export async function getCategoryBySlug(
+  slug: string,
+  page = 1
+): Promise<{ category: Category; data: PaginatedResponse<Movie> }> {
+  const [res, approvedSet] = await Promise.all([
+    fetchApi<OphimV1List>(`/v1/api/the-loai/${encodeURIComponent(slug)}?page=${page}`),
+    getApprovedMovieSlugs(),
+  ]);
+  const p = res.data.params.pagination;
+  let items = res.data.items as OphimRawItem[];
+  if (approvedSet.size > 0) items = items.filter((it) => approvedSet.has(String(it.slug || "")));
+  const totalItems = items.length;
+  const query: Record<string, string> = {};
+  const start = (page - 1) * p.totalItemsPerPage;
+  const paged = items.slice(start, start + p.totalItemsPerPage);
+  const data = toPaginatedResponse(paged as unknown[], res.data.APP_DOMAIN_CDN_IMAGE, page, totalItems, p.totalItemsPerPage, `/the-loai/${slug}`, query);
+  return {
+    category: { id: slug, name: res.data.titlePage || slug, slug, url: `/the-loai/${slug}` },
+    data,
+  };
+}
+
+export async function getRegionBySlug(
+  slug: string,
+  page = 1
+): Promise<{ region: Region; data: PaginatedResponse<Movie> }> {
+  const [res, approvedSet] = await Promise.all([
+    fetchApi<OphimV1List>(`/v1/api/quoc-gia/${encodeURIComponent(slug)}?page=${page}`),
+    getApprovedMovieSlugs(),
+  ]);
+  const p = res.data.params.pagination;
+  let items = res.data.items as OphimRawItem[];
+  if (approvedSet.size > 0) items = items.filter((it) => approvedSet.has(String(it.slug || "")));
+  const totalItems = items.length;
+  const query: Record<string, string> = {};
+  const start = (page - 1) * p.totalItemsPerPage;
+  const paged = items.slice(start, start + p.totalItemsPerPage);
+  const data = toPaginatedResponse(paged as unknown[], res.data.APP_DOMAIN_CDN_IMAGE, page, totalItems, p.totalItemsPerPage, `/quoc-gia/${slug}`, query);
+  return {
+    region: { id: slug, name: res.data.titlePage || slug, slug, url: `/quoc-gia/${slug}` },
+    data,
+  };
+}
+
+export async function getTagBySlug(
+  slug: string,
+  _page = 1
+): Promise<{ tag: Tag; data: PaginatedResponse<Movie> }> {
+  void slug;
+  void _page;
+  throw new Error("Tag endpoint not supported by ophim1.com API");
+}
+
+export async function getCatalogBySlug(
+  slug: string,
+  page = 1
+): Promise<{ catalog: Catalog; data: PaginatedResponse<Movie> }> {
+  const [res, approvedSet] = await Promise.all([
+    fetchApi<OphimV1List>(`/v1/api/danh-sach/${encodeURIComponent(slug)}?page=${page}`),
+    getApprovedMovieSlugs(),
+  ]);
+  const p = res.data.params.pagination;
+  let items = res.data.items as OphimRawItem[];
+  if (approvedSet.size > 0) items = items.filter((it) => approvedSet.has(String(it.slug || "")));
+  const totalItems = items.length;
+  const query: Record<string, string> = {};
+  const start = (page - 1) * p.totalItemsPerPage;
+  const paged = items.slice(start, start + p.totalItemsPerPage);
+  const data = toPaginatedResponse(paged as unknown[], res.data.APP_DOMAIN_CDN_IMAGE, page, totalItems, p.totalItemsPerPage, `/danh-sach/${slug}`, query);
+  return {
+    catalog: { id: slug, name: res.data.titlePage || slug, slug },
+    data,
+  };
+}
+
+export async function getActorBySlug(
+  slug: string,
+  _page = 1
+): Promise<{ person: Actor; data: PaginatedResponse<Movie> }> {
+  void slug;
+  void _page;
+  throw new Error("Actor endpoint not supported by ophim1.com API");
+}
+
+export async function getDirectorBySlug(
+  slug: string,
+  _page = 1
+): Promise<{ person: Director; data: PaginatedResponse<Movie> }> {
+  void slug;
+  void _page;
+  throw new Error("Director endpoint not supported by ophim1.com API");
+}
+
+export async function getMovie(slug: string): Promise<{
+  currentMovie: Movie;
+  movie_related: Movie[];
+  movie_related_top: Movie[];
+}> {
+  const [res, approvedSet] = await Promise.all([
+    fetchApi<OphimV1Movie>(`/v1/api/phim/${encodeURIComponent(slug)}`),
+    getApprovedMovieSlugs(),
+  ]);
+  if (approvedSet.size > 0 && !approvedSet.has(slug)) {
+    throw new Error("NOT_FOUND");
+  }
+  const cdn = res.data.APP_DOMAIN_CDN_IMAGE;
+  const currentMovie = mapItemToMovie(res.data.item, cdn);
+  const categorySlug = currentMovie.categories?.[0]?.slug;
+  let related: Movie[] = [];
+  if (categorySlug) {
+    const rel = await fetchApi<OphimV1List>(`/v1/api/the-loai/${encodeURIComponent(categorySlug)}?page=1`);
+    related = rel.data.items.map((it) => mapItemToMovie(it as OphimRawItem, rel.data.APP_DOMAIN_CDN_IMAGE));
+    related = filterByApproved(related, approvedSet);
+    related = related.filter((m) => m.slug !== currentMovie.slug).slice(0, 14);
+  }
+  return { currentMovie, movie_related: related, movie_related_top: related.slice(0, 10) };
+}
+
+export async function getEpisode(
+  movieSlug: string,
+  episodeSlug: string,
+  episodeId: string
+): Promise<{
+  currentMovie: Movie;
+  episode: Episode;
+  movie_related: Movie[];
+  movie_related_top: Movie[];
+}> {
+  const movieData = await getMovie(movieSlug);
+  const eps = movieData.currentMovie.episodes || [];
+  const idNum = Number(episodeId);
+  const episode =
+    eps.find((e) => e.slug === episodeSlug && e.id === idNum) ||
+    eps.find((e) => e.slug === episodeSlug) ||
+    eps[0];
+  if (!episode) throw new Error("Episode not found");
+  return {
+    currentMovie: movieData.currentMovie,
+    episode,
+    movie_related: movieData.movie_related,
+    movie_related_top: movieData.movie_related_top,
+  };
+}
+
+export async function reportEpisode(
+  _movieSlug: string,
+  _episodeSlug: string,
+  _payload: { id: number; message?: string }
+): Promise<void> {
+  void _movieSlug;
+  void _episodeSlug;
+  void _payload;
+  throw new Error("Report not supported by ophim1.com API");
+}
+
+export async function rateMovie(
+  _movieSlug: string,
+  _rating: number
+): Promise<RateResponse> {
+  void _movieSlug;
+  void _rating;
+  throw new Error("Rating not supported by ophim1.com API");
+}
