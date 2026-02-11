@@ -18,6 +18,14 @@ import { getApprovedMovieSlugs } from "@/lib/db";
 const BASE = process.env.NEXT_PUBLIC_API_URL;
 const FETCH_TIMEOUT = 8000;
 
+async function safeApprovedSlugs(): Promise<Set<string>> {
+  try {
+    return await getApprovedMovieSlugs();
+  } catch {
+    return new Set();
+  }
+}
+
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   const url = path.startsWith("http") ? path : `${BASE}${path}`;
   const controller = new AbortController();
@@ -30,6 +38,24 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   clearTimeout(timeout);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json() as Promise<T>;
+}
+
+function emptyHomeData(): HomeData {
+  return {
+    menu: [
+      { name: "Trang chủ", link: "/" },
+      { name: "Cập nhật", link: "/danh-sach/phim-moi-cap-nhat" },
+      { name: "Phim lẻ", link: "/danh-sach/phim-le" },
+      { name: "Phim bộ", link: "/danh-sach/phim-bo" },
+      { name: "TV Shows", link: "/danh-sach/tv-shows" },
+      { name: "Thể loại", link: "/the-loai" },
+      { name: "Quốc gia", link: "/quoc-gia" },
+    ],
+    title: "Ophim1",
+    slider: { label: "Phim mới", data: [] },
+    sections: [],
+    settings: {},
+  };
 }
 
 type OphimV1List = {
@@ -261,14 +287,16 @@ function filterByApproved<T extends { slug: string }>(items: T[], approved: Set<
 }
 
 export async function getHome(): Promise<HomeData> {
-  const [cats, regs, latest, single, series, approvedSet] = await Promise.all([
-    fetchApi<OphimV1SimpleList>("/v1/api/the-loai"),
-    fetchApi<OphimV1SimpleList>("/v1/api/quoc-gia"),
-    fetchApi<OphimV1List>("/v1/api/danh-sach/phim-moi-cap-nhat?page=1"),
-    fetchApi<OphimV1List>("/v1/api/danh-sach/phim-le?page=1"),
-    fetchApi<OphimV1List>("/v1/api/danh-sach/phim-bo?page=1"),
-    getApprovedMovieSlugs(),
-  ]);
+  if (!BASE) return emptyHomeData();
+  try {
+    const [cats, regs, latest, single, series, approvedSet] = await Promise.all([
+      fetchApi<OphimV1SimpleList>("/v1/api/the-loai"),
+      fetchApi<OphimV1SimpleList>("/v1/api/quoc-gia"),
+      fetchApi<OphimV1List>("/v1/api/danh-sach/phim-moi-cap-nhat?page=1"),
+      fetchApi<OphimV1List>("/v1/api/danh-sach/phim-le?page=1"),
+      fetchApi<OphimV1List>("/v1/api/danh-sach/phim-bo?page=1"),
+      safeApprovedSlugs(),
+    ]);
 
   const categoriesRaw = Array.isArray(cats.data) ? cats.data : cats.data.items;
   const regionsRaw = Array.isArray(regs.data) ? regs.data : regs.data.items;
@@ -303,37 +331,40 @@ export async function getHome(): Promise<HomeData> {
   singleMovies = filterByApproved(singleMovies, approvedSet);
   seriesMovies = filterByApproved(seriesMovies, approvedSet);
 
-  return {
-    menu,
-    title: "Ophim1",
-    slider: { label: "Phim mới", data: latestMovies.slice(0, 10) },
-    sections: [
-      { label: "Phim mới cập nhật", show_template: "section_thumb", data: latestMovies },
-      {
-        label: "Phim lẻ",
-        show_template: "section_side",
-        data: singleMovies,
-        topview: singleMovies.slice(0, 10),
-        link: "/danh-sach/phim-le",
-      },
-      {
-        label: "Phim bộ",
-        show_template: "section_side",
-        data: seriesMovies,
-        topview: seriesMovies.slice(0, 10),
-        link: "/danh-sach/phim-bo",
-      },
-    ],
-    settings: {},
-  };
+    return {
+      menu,
+      title: "Ophim1",
+      slider: { label: "Phim mới", data: latestMovies.slice(0, 10) },
+      sections: [
+        { label: "Phim mới cập nhật", show_template: "section_thumb", data: latestMovies },
+        {
+          label: "Phim lẻ",
+          show_template: "section_side",
+          data: singleMovies,
+          topview: singleMovies.slice(0, 10),
+          link: "/danh-sach/phim-le",
+        },
+        {
+          label: "Phim bộ",
+          show_template: "section_side",
+          data: seriesMovies,
+          topview: seriesMovies.slice(0, 10),
+          link: "/danh-sach/phim-bo",
+        },
+      ],
+      settings: {},
+    };
+  } catch {
+    return emptyHomeData();
+  }
 }
 
 export async function search(q: string): Promise<SearchResultItem[]> {
-  if (!q.trim()) return [];
+  if (!q.trim() || !BASE) return [];
   const params = new URLSearchParams({ keyword: q.trim(), page: "1" });
   const [res, approvedSet] = await Promise.all([
     fetchApi<OphimV1List>(`/v1/api/tim-kiem?${params}`),
-    getApprovedMovieSlugs(),
+    safeApprovedSlugs(),
   ]);
   const cdn = res.data.APP_DOMAIN_CDN_IMAGE;
   let items = (res.data.items || []) as OphimRawItem[];
@@ -353,6 +384,16 @@ export async function getCatalog(
   params: CatalogParams
 ): Promise<PaginatedResponse<Movie>> {
   const page = params.page || 1;
+  if (!BASE) {
+    const query: Record<string, string> = {};
+    if (params.search) query.search = params.search;
+    if (params.categorys) query.categorys = params.categorys;
+    if (params.regions) query.regions = params.regions;
+    if (params.years) query.years = params.years;
+    if (params.types) query.types = params.types;
+    if (params.sorts) query.sorts = params.sorts;
+    return toPaginatedResponse([], "", 1, 0, 24, "/catalog", query);
+  }
   const q = new URLSearchParams({ page: String(page) });
   if (params.categorys) q.set("category", params.categorys);
   if (params.regions) q.set("country", params.regions);
@@ -368,7 +409,7 @@ export async function getCatalog(
 
   const [res, approvedSet] = await Promise.all([
     fetchApi<OphimV1List>(endpoint),
-    getApprovedMovieSlugs(),
+    safeApprovedSlugs(),
   ]);
   const p = res.data.params.pagination;
   const perPage = p.totalItemsPerPage;
@@ -438,7 +479,7 @@ export async function getCategoryBySlug(
 ): Promise<{ category: Category; data: PaginatedResponse<Movie> }> {
   const [res, approvedSet] = await Promise.all([
     fetchApi<OphimV1List>(`/v1/api/the-loai/${encodeURIComponent(slug)}?page=${page}`),
-    getApprovedMovieSlugs(),
+    safeApprovedSlugs(),
   ]);
   const p = res.data.params.pagination;
   let items = res.data.items as OphimRawItem[];
@@ -460,7 +501,7 @@ export async function getRegionBySlug(
 ): Promise<{ region: Region; data: PaginatedResponse<Movie> }> {
   const [res, approvedSet] = await Promise.all([
     fetchApi<OphimV1List>(`/v1/api/quoc-gia/${encodeURIComponent(slug)}?page=${page}`),
-    getApprovedMovieSlugs(),
+    safeApprovedSlugs(),
   ]);
   const p = res.data.params.pagination;
   let items = res.data.items as OphimRawItem[];
@@ -491,7 +532,7 @@ export async function getCatalogBySlug(
 ): Promise<{ catalog: Catalog; data: PaginatedResponse<Movie> }> {
   const [res, approvedSet] = await Promise.all([
     fetchApi<OphimV1List>(`/v1/api/danh-sach/${encodeURIComponent(slug)}?page=${page}`),
-    getApprovedMovieSlugs(),
+    safeApprovedSlugs(),
   ]);
   const p = res.data.params.pagination;
   let items = res.data.items as OphimRawItem[];
@@ -532,7 +573,7 @@ export async function getMovie(slug: string): Promise<{
 }> {
   const [res, approvedSet] = await Promise.all([
     fetchApi<OphimV1Movie>(`/v1/api/phim/${encodeURIComponent(slug)}`),
-    getApprovedMovieSlugs(),
+    safeApprovedSlugs(),
   ]);
   if (approvedSet.size > 0 && !approvedSet.has(slug)) {
     throw new Error("NOT_FOUND");

@@ -29,6 +29,7 @@ const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || (proces
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   secret,
+  trustHost: true,
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
