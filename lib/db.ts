@@ -133,6 +133,35 @@ export async function deleteVerificationToken(token: string): Promise<void> {
   await client.verificationToken.deleteMany({ where: { token } });
 }
 
+interface PasswordResetTokenClient {
+  passwordResetToken: {
+    create: (args: { data: { email: string; token: string; expires: Date } }) => Promise<unknown>;
+    findUnique: (args: { where: { token: string }; select: { email: true; expires: true } }) => Promise<{ email: string; expires: Date } | null>;
+    deleteMany: (args: { where: { token: string } }) => Promise<unknown>;
+  };
+}
+
+export async function createPasswordResetToken(email: string, token: string, expires: Date): Promise<void> {
+  const prisma = getPrisma();
+  if (!prisma) noDb();
+  const client = prisma as unknown as PasswordResetTokenClient;
+  await client.passwordResetToken.create({ data: { email: email.toLowerCase(), token, expires } });
+}
+
+export async function getPasswordResetTokenByToken(token: string): Promise<{ email: string; expires: Date } | null> {
+  const prisma = getPrisma();
+  if (!prisma) return null;
+  const client = prisma as unknown as PasswordResetTokenClient;
+  return client.passwordResetToken.findUnique({ where: { token }, select: { email: true, expires: true } });
+}
+
+export async function deletePasswordResetToken(token: string): Promise<void> {
+  const prisma = getPrisma();
+  if (!prisma) noDb();
+  const client = prisma as unknown as PasswordResetTokenClient;
+  await client.passwordResetToken.deleteMany({ where: { token } });
+}
+
 export async function setEmailVerified(email: string): Promise<void> {
   const prisma = getPrisma();
   if (!prisma) noDb();

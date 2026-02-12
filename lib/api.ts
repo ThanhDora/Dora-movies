@@ -310,11 +310,10 @@ export async function getHome(): Promise<HomeData> {
       safeApprovedSlugs(),
       (async () => {
         const results = await Promise.allSettled([
-          fetchApi<OphimV1List>("/v1/api/the-loai/hoat-hinh?page=1"),
-          fetchApi<OphimV1List>("/v1/api/the-loai/anime?page=1"),
-          fetchApi<OphimV1List>("/v1/api/the-loai/hoat-hinh-nhat-ban?page=1"),
+          fetchApi<OphimV1List>("/v1/api/the-loai/hanh-dong?page=1"),
+          fetchApi<OphimV1List>("/v1/api/the-loai/action?page=1"),
         ]);
-        const slugs: [string, string][] = [["hoat-hinh", "/the-loai/hoat-hinh"], ["anime", "/the-loai/anime"], ["hoat-hinh-nhat-ban", "/the-loai/hoat-hinh-nhat-ban"]];
+        const slugs: [string, string][] = [["hanh-dong", "/the-loai/hanh-dong"], ["action", "/the-loai/action"]];
         for (let i = 0; i < results.length; i++) {
           const r = results[i];
           if (r.status === "fulfilled" && r.value?.data?.items?.length)
@@ -358,7 +357,7 @@ export async function getHome(): Promise<HomeData> {
   seriesMovies = filterByApproved(seriesMovies, approvedSet);
 
   let animeMovies: Movie[] = [];
-  let animeLink = "/the-loai/hoat-hinh";
+  let animeLink = "/the-loai/hanh-dong";
   if (animeRes && animeRes.res?.data?.items?.length) {
     const cdnAnime = animeRes.res.data.APP_DOMAIN_CDN_IMAGE;
     animeMovies = animeRes.res.data.items.map((it) => mapItemToMovie(it as OphimRawItem, cdnAnime));
@@ -389,7 +388,7 @@ export async function getHome(): Promise<HomeData> {
   ];
   if (animeMovies.length > 0) {
     sectionsOut.push({
-      label: "Kho Tàng Anime",
+      label: "Kho phim hành động",
       show_template: "section_thumb",
       data: animeMovies,
       link: animeLink,

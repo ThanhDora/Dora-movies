@@ -15,7 +15,7 @@ const REGION_ROWS: { slug: string; title: string; theme: "korea" | "china" | "us
   { slug: "au-my", title: "Phim US-UK mới nhất", theme: "usuk" },
 ];
 
-const ANIME_CATEGORY_SLUG = "anime";
+const ACTION_CATEGORY_SLUG = "hanh-dong";
 
 export default async function HomePage({
   searchParams,
@@ -57,16 +57,31 @@ export default async function HomePage({
   }
 
   const sliderMovies = (slider?.data as Movie[] | undefined) ?? [];
-  const featured = sliderMovies[0];
-  const hasHero = featured && sliderMovies.length > 0;
-
+  let heroMovies: Movie[] = sliderMovies;
   let watchUrls: string[] = [];
+
   if (sliderMovies.length > 0) {
     const results = await Promise.allSettled(
-      sliderMovies.map((m) => getMovie(m.slug).then((data) => getWatchUrl(data.currentMovie)))
+      sliderMovies.map((m) => getMovie(m.slug))
     );
-    watchUrls = results.map((r) => (r.status === "fulfilled" ? r.value : ""));
+    watchUrls = results.map((r) => {
+      if (r.status !== "fulfilled" || !r.value?.currentMovie) return "";
+      return getWatchUrl(r.value.currentMovie) ?? "";
+    });
+    heroMovies = sliderMovies.map((m, i) => {
+      const r = results[i];
+      if (r.status !== "fulfilled" || !r.value?.currentMovie) return m;
+      const d = r.value.currentMovie;
+      return {
+        ...m,
+        content: d.content ?? m.content,
+        categories: d.categories ?? m.categories,
+      };
+    });
   }
+
+  const featured = heroMovies[0];
+  const hasHero = featured && heroMovies.length > 0;
 
   const regionRowsData = await Promise.all(
     REGION_ROWS.map(async ({ slug, title, theme }) => {
@@ -87,35 +102,35 @@ export default async function HomePage({
   const newUpdatesSection = sections.find(isNewUpdates) ?? null;
   const isPhimBo = (s: SectionData) => (s.link || "").includes("phim-bo") || (s.label || "").toLowerCase().includes("phim bộ");
   const isPhimLe = (s: SectionData) => (s.link || "").includes("phim-le") || (s.label || "").toLowerCase().includes("phim lẻ") || (s.label || "").toLowerCase().includes("phim le");
-  const isAnime = (s: SectionData) => (s.link || "").includes("anime") || (s.label || "").toLowerCase().includes("anime") || (s.label || "").toLowerCase().includes("kho tàng anime");
-  const otherSections = sections.filter((item) => !isNewUpdates(item) && !isPhimBo(item) && !isPhimLe(item) && !isAnime(item));
+  const isActionSection = (s: SectionData) => (s.link || "").includes("hanh-dong") || (s.link || "").includes("action") || (s.label || "").toLowerCase().includes("kho phim hành động") || (s.label || "").toLowerCase().includes("hành động");
+  const otherSections = sections.filter((item) => !isNewUpdates(item) && !isPhimBo(item) && !isPhimLe(item) && !isActionSection(item));
   const phimBoSection = sections.find(isPhimBo);
   const phimLeSection = sections.find(isPhimLe);
   const top10Series = (phimBoSection?.topview ?? phimBoSection?.data?.slice(0, 10) ?? []) as Movie[];
   const top10Movies = (phimLeSection?.topview ?? phimLeSection?.data?.slice(0, 10) ?? []) as Movie[];
 
-  let animeData: { category: { url: string }; movies: Movie[] } | null = null;
-  let animeWatchUrl: string | undefined;
+  let actionData: { category: { url: string }; movies: Movie[] } | null = null;
+  let actionWatchUrl: string | undefined;
   try {
-    const { category, data } = await getCategoryBySlug(ANIME_CATEGORY_SLUG, 1);
+    const { category, data } = await getCategoryBySlug(ACTION_CATEGORY_SLUG, 1);
     const list = (data.data || []) as Movie[];
     if (list.length > 0) {
-      animeData = { category: { url: category.url || `/the-loai/${ANIME_CATEGORY_SLUG}` }, movies: list };
+      actionData = { category: { url: category.url || `/the-loai/${ACTION_CATEGORY_SLUG}` }, movies: list };
     }
   } catch {
-    const animeSection = sections.find(isAnime);
-    const list = (animeSection?.data || []) as Movie[];
+    const actionSection = sections.find(isActionSection);
+    const list = (actionSection?.data || []) as Movie[];
     if (list.length > 0) {
-      animeData = { category: { url: animeSection?.link || `/the-loai/${ANIME_CATEGORY_SLUG}` }, movies: list };
+      actionData = { category: { url: actionSection?.link || `/the-loai/${ACTION_CATEGORY_SLUG}` }, movies: list };
     }
   }
-  if (animeData && animeData.movies.length > 0) {
-    const toFetch = animeData.movies.slice(0, 12);
+  if (actionData && actionData.movies.length > 0) {
+    const toFetch = actionData.movies.slice(0, 12);
     const details = await Promise.all(toFetch.map((m) => getMovie(m.slug).catch(() => null)));
-    animeWatchUrl = details[0] ? getWatchUrl(details[0].currentMovie) || undefined : undefined;
-    animeData = {
-      ...animeData,
-      movies: animeData.movies.map((m, i) => {
+    actionWatchUrl = details[0] ? getWatchUrl(details[0].currentMovie) || undefined : undefined;
+    actionData = {
+      ...actionData,
+      movies: actionData.movies.map((m, i) => {
         const d = details[i];
         if (!d) return m;
         return {
@@ -131,7 +146,7 @@ export default async function HomePage({
     <>
       {hasHero ? (
         <section className="w-full -mt-14 md:-mt-[70px]">
-          <HomeHero featured={featured} movies={sliderMovies} watchUrls={watchUrls} />
+          <HomeHero featured={featured} movies={heroMovies} watchUrls={watchUrls} />
         </section>
       ) : null}
       <main id="sections" className="w-full max-w-[1600px] mx-auto px-3 sm:px-4 py-6 sm:py-8">
@@ -144,10 +159,10 @@ export default async function HomePage({
         )}
         {top10Series.length > 0 && <Top10SeriesSection movies={top10Series} />}
         {regionRowsData.some((r) => r.movies.length > 0) && (
-          <section className="mb-10 rounded-2xl border border-white/10 bg-[#0f0f12] p-4 sm:p-5 overflow-hidden">
+          <section className="mb-10 rounded-2xl bg-[#0f0f12] p-4 sm:p-5 overflow-hidden">
             {regionRowsData.map((row, i) =>
               row.movies.length > 0 ? (
-                <div key={i} className={i > 0 ? "mt-6 pt-6 border-t border-white/10" : ""}>
+                <div key={i} className={i > 0 ? "mt-6 pt-6" : ""}>
                   <SectionRegionRow title={row.title} link={row.link} movies={row.movies} theme={row.theme} embedded />
                 </div>
               ) : null
@@ -159,13 +174,13 @@ export default async function HomePage({
           const template = item.show_template || item.label;
           return <LazySection key={i} item={item} showTemplate={template} />;
         })}
-        {animeData && animeData.movies.length > 0 && (
+        {actionData && actionData.movies.length > 0 && (
           <AnimeTreasureSection
-            title="Kho Tàng Anime"
-            link={animeData.category.url}
-            featured={animeData.movies[0]}
-            movies={animeData.movies}
-            watchUrl={animeWatchUrl}
+            title="Kho phim hành động"
+            link={actionData.category.url}
+            featured={actionData.movies[0]}
+            movies={actionData.movies}
+            watchUrl={actionWatchUrl}
           />
         )}
       </main>

@@ -61,6 +61,13 @@ function PlayIconSmall() {
 
 const INTRO_SKIP_SECONDS = 90;
 
+function formatTime(s: number): string {
+  if (!isFinite(s) || s < 0) return "0:00";
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec < 10 ? "0" : ""}${sec}`;
+}
+
 function VideoPlayerWithProgress({
   src,
   initialProgressSeconds,
@@ -82,6 +89,21 @@ function VideoPlayerWithProgress({
   const appliedRef = useRef(false);
   const [showSkipIntro, setShowSkipIntro] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [showControls, setShowControls] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const hideControlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleMouseEnter = useCallback(() => {
+    if (hideControlsTimerRef.current) {
+      clearTimeout(hideControlsTimerRef.current);
+      hideControlsTimerRef.current = null;
+    }
+    setShowControls(true);
+  }, []);
+  const handleMouseLeave = useCallback(() => {
+    hideControlsTimerRef.current = setTimeout(() => setShowControls(false), 400);
+  }, []);
+  useEffect(() => () => { if (hideControlsTimerRef.current) clearTimeout(hideControlsTimerRef.current); }, []);
   useEffect(() => {
     const el = ref.current;
     if (!el || appliedRef.current || initialProgressSeconds == null || initialProgressSeconds <= 0) return;
@@ -126,6 +148,7 @@ function VideoPlayerWithProgress({
     if (!el) return;
     const t = el.currentTime;
     setCurrentTime(t);
+    if (el.duration && isFinite(el.duration)) setDuration(el.duration);
     if (skipIntro && t >= introEndSeconds) setShowSkipIntro(false);
     else if (skipIntro && el.duration && isFinite(el.duration) && t < introEndSeconds) setShowSkipIntro(true);
     if (onEnded && !endedTriggeredRef.current && el.duration && isFinite(el.duration) && t >= Math.max(0, el.duration - 2)) {
@@ -153,18 +176,43 @@ function VideoPlayerWithProgress({
       if (el.currentTime < introEndSeconds - 2) el.currentTime = target;
     };
     setTimeout(again, 200);
-    if (el.paused) el.play().catch(() => {});
+    if (el.paused) el.play().catch(() => { });
   }, [introEndSeconds]);
+  const togglePlay = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (el.paused) el.play().catch(() => { });
+    else el.pause();
+  }, []);
+  const handleSeek = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const el = ref.current;
+    if (!el) return;
+    const p = parseFloat(e.target.value);
+    if (el.duration && isFinite(el.duration)) {
+      el.currentTime = (p / 100) * el.duration;
+      setCurrentTime(el.currentTime);
+    }
+  }, []);
+  const seekPercent = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
+  const handlePointerDown = useCallback(() => {
+    if (hideControlsTimerRef.current) {
+      clearTimeout(hideControlsTimerRef.current);
+      hideControlsTimerRef.current = null;
+    }
+    setShowControls(true);
+  }, []);
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} onTouchStart={handlePointerDown} onClick={handlePointerDown}>
       <video
         ref={ref}
-        controls
         autoPlay
         className="w-full h-full"
         src={src}
         onTimeUpdate={handleTimeUpdate}
         onEnded={onEnded}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onLoadedMetadata={(e) => { const d = (e.target as HTMLVideoElement).duration; if (isFinite(d)) setDuration(d); }}
       />
       {showSkipIntro && (
         <button
@@ -175,6 +223,28 @@ function VideoPlayerWithProgress({
           Bỏ qua giới thiệu
         </button>
       )}
+      <div
+        className={`absolute bottom-0 left-0 right-0 z-10 flex flex-col justify-end bg-linear-to-t from-black/90 to-transparent pt-8 pb-2 px-3 transition-opacity duration-200 ${showControls ? "opacity-100" : "opacity-0"}`}
+      >
+        <input
+          type="range"
+          min={0}
+          max={100}
+          value={seekPercent}
+          onChange={handleSeek}
+          className="w-full h-1.5 accent-[#f97316] cursor-pointer mb-2"
+        />
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={togglePlay} className="p-1.5 rounded-full bg-white/20 text-white hover:bg-white/30 transition-colors" aria-label={isPlaying ? "Tạm dừng" : "Phát"}>
+            {isPlaying ? (
+              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
+            ) : (
+              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+            )}
+          </button>
+          <span className="text-white text-sm tabular-nums">{formatTime(currentTime)} / {formatTime(duration)}</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -204,7 +274,6 @@ export default function EpisodeContent({
   currentMovie,
   episode,
   movie_related,
-  movie_related_top,
   episodePath = null,
   initialProgressSeconds,
   isLoggedIn = false,
@@ -212,7 +281,6 @@ export default function EpisodeContent({
   currentMovie: Movie;
   episode: Episode;
   movie_related: Movie[];
-  movie_related_top: Movie[];
   episodePath?: string | null;
   initialProgressSeconds?: number;
   isLoggedIn?: boolean;
@@ -240,6 +308,9 @@ export default function EpisodeContent({
   const [skipIntro, setSkipIntro] = useState(true);
   const [cinemaMode, setCinemaMode] = useState(false);
   const [seasonOpen, setSeasonOpen] = useState(false);
+  const [episodesSheetOpen, setEpisodesSheetOpen] = useState(false);
+  const [playerOverlayVisible, setPlayerOverlayVisible] = useState(false);
+  const playerOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -262,7 +333,7 @@ export default function EpisodeContent({
           const list = data?.items ?? [];
           setFavorite(list.some((i: { movieSlug: string }) => i.movieSlug === currentMovie.slug));
         })
-        .catch(() => {});
+        .catch(() => { });
     } else {
       try {
         const raw = localStorage.getItem(FAVORITE_KEY);
@@ -316,11 +387,11 @@ export default function EpisodeContent({
   const nextEpisodePath =
     currentEpisodeIndex >= 0 && currentEpisodeIndex < episodeNamesSorted.length - 1
       ? (() => {
-          const nextName = episodeNamesSorted[currentEpisodeIndex + 1];
-          const list = currentServerByName.get(nextName) || [];
-          const best = [...list].sort((a, b) => (b.type || "").localeCompare(a.type || ""))[0];
-          return best ? `/phim/${currentMovie.slug}/${best.slug}-${best.id}` : null;
-        })()
+        const nextName = episodeNamesSorted[currentEpisodeIndex + 1];
+        const list = currentServerByName.get(nextName) || [];
+        const best = [...list].sort((a, b) => (b.type || "").localeCompare(a.type || ""))[0];
+        return best ? `/phim/${currentMovie.slug}/${best.slug}-${best.id}` : null;
+      })()
       : null;
   const sameSlugSameServer = currentServerEpisodes.filter(
     (e) => e.slug === episode.slug && e.server === episode.server
@@ -334,7 +405,7 @@ export default function EpisodeContent({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ movieSlug: currentMovie.slug, episodePath, progressSeconds: Math.floor(seconds) }),
-      }).catch(() => {});
+      }).catch(() => { });
     },
     [isLoggedIn, episodePath, currentMovie.slug]
   );
@@ -463,6 +534,20 @@ export default function EpisodeContent({
 
   const movieUrl = currentMovie.url || `/phim/${currentMovie.slug}`;
 
+  const showPlayerOverlay = useCallback(() => {
+    if (playerOverlayTimerRef.current) {
+      clearTimeout(playerOverlayTimerRef.current);
+      playerOverlayTimerRef.current = null;
+    }
+    setPlayerOverlayVisible(true);
+    playerOverlayTimerRef.current = setTimeout(() => {
+      setPlayerOverlayVisible(false);
+      playerOverlayTimerRef.current = null;
+    }, 4000);
+  }, []);
+
+  useEffect(() => () => { if (playerOverlayTimerRef.current) clearTimeout(playerOverlayTimerRef.current); }, []);
+
   return (
     <main className="w-full max-w-[1600px] mx-auto px-3 sm:px-4 py-3 sm:py-6">
       {toast && (
@@ -481,26 +566,87 @@ export default function EpisodeContent({
           <div
             className={
               cinemaMode
-                ? "fixed inset-0 z-50 bg-black flex flex-col"
-                : "w-full pb-[56.25%] relative h-0 bg-black rounded-none sm:rounded-lg overflow-hidden"
+                ? `fixed inset-0 z-50 bg-black flex flex-col group ${playerOverlayVisible ? "player-overlay-visible" : ""}`
+                : `w-full pb-[56.25%] relative h-0 bg-black rounded-none sm:rounded-lg overflow-hidden group ${playerOverlayVisible ? "player-overlay-visible" : ""}`
             }
           >
             {cinemaMode && (
-              <div className="flex items-center justify-between px-4 py-2 bg-black/80 shrink-0">
+              <div className="player-show-controls-on-hover player-controls-mobile-dim flex items-center justify-between px-4 py-2 bg-black/80 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none group-hover:pointer-events-auto">
                 <span className="text-white font-medium truncate text-sm">{currentMovie.name} - Tập {currentEpisode.name}</span>
                 <button type="button" onClick={() => setCinemaMode(false)} className="shrink-0 px-4 py-2 rounded-lg bg-white/20 text-white text-sm font-medium hover:bg-white/30 transition-colors">
                   Thoát rạp phim
                 </button>
               </div>
             )}
-            <div className={cinemaMode ? "flex-1 min-h-0 relative" : "absolute inset-0 w-full h-full"} id="player-wrapper">
+            <div className={`${cinemaMode ? "flex-1 min-h-0 relative" : "absolute inset-0 w-full h-full"} overflow-hidden`} id="player-wrapper" onTouchStart={showPlayerOverlay} onClick={showPlayerOverlay}>
               {playerContent}
+              <button
+                type="button"
+                onClick={() => { setSeasonOpen(false); setEpisodesSheetOpen(true); }}
+                className="player-show-controls-on-hover player-controls-mobile-dim absolute right-1 top-1 sm:right-2 sm:top-2 z-20 flex items-center gap-0.5 min-h-[24px] sm:min-h-[32px] px-1.5 py-0.5 sm:px-2.5 sm:py-1.5 rounded bg-black/50 text-white/85 text-[9px] sm:text-xs font-medium hover:bg-black/60 hover:text-white transition-opacity duration-200 opacity-0 group-hover:opacity-100 touch-manipulation border border-white/10"
+              >
+                <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                </svg>
+                Tập
+              </button>
+              {episodesSheetOpen && (
+                <>
+                  <div className="absolute inset-0 z-20 bg-black/50" onClick={() => setEpisodesSheetOpen(false)} aria-hidden />
+                  <div className="absolute right-0 top-0 bottom-0 z-21 w-[72%] max-w-[260px] sm:w-[85%] sm:max-w-[340px] flex flex-col bg-[#1a1a1e]/85 backdrop-blur-sm border-l border-white/10 shadow-2xl sheet-slide-from-right">
+                    <div className="flex items-center justify-between gap-2 px-3 py-2 sm:px-4 sm:py-3 border-b border-white/10 shrink-0 h-[60px]">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-white/90 font-semibold text-sm sm:text-base leading-tight line-clamp-2">{currentMovie.name}</h3>
+                        <p className="text-[#fde047] font-medium text-xs sm:text-sm mt-0.5">Đang xem: Tập {currentEpisode.name}</p>
+                      </div>
+                      <button type="button" onClick={() => setEpisodesSheetOpen(false)} className="p-1.5 sm:p-2 rounded-lg text-white/70 hover:bg-white/10 transition-colors shrink-0">
+                        <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                    <div className="flex-1 min-h-0 overflow-auto px-3 pt-2.5 pb-5">
+                      <div className="flex flex-col gap-2">
+                        {episodeNamesSorted.map((name) => {
+                          const list = currentServerByName.get(name) || [];
+                          const best = [...list].sort((a, b) => (b.type || "").localeCompare(a.type || ""))[0];
+                          const isActive = list.some((e) => e.id === currentEpisode.id);
+                          const thumb = currentMovie.poster_url || currentMovie.thumb_url || "";
+                          return (
+                            <Link
+                              key={name}
+                              href={best ? `/phim/${currentMovie.slug}/${best.slug}-${best.id}` : "#"}
+                              onClick={() => setEpisodesSheetOpen(false)}
+                              className={`flex items-center gap-3 rounded-xl overflow-hidden transition-colors touch-manipulation active:scale-[0.98] min-h-0 ${isActive ? "bg-[#f97316]/20 ring-1 ring-[#f97316]/60" : "bg-[#25252b]/80 hover:bg-[#2a2a32]/80 border border-white/5"}`}
+                            >
+                              <div className="relative w-20 shrink-0 aspect-video rounded-lg overflow-hidden bg-[#232328]">
+                                {thumb ? (
+                                  <Image src={thumb} alt="" width={80} height={45} className="object-cover w-full h-full" unoptimized={thumb.startsWith("http")} />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-white/30 text-xs">T{name}</div>
+                                )}
+                                {isActive ? (
+                                  <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                                    <PlayIconSmall />
+                                  </div>
+                                ) : null}
+                              </div>
+                              <span className={`flex-1 min-w-0 truncate text-sm font-semibold py-3 pr-3 ${isActive ? "text-[#f97316]" : "text-white/90"}`}>Tập {name}</span>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
           {cinemaMode && <div className="w-full pb-[56.25%] bg-transparent pointer-events-none" aria-hidden />}
 
-          <div className="mt-4 sm:mt-5">
-            <h2 className="text-sm font-semibold text-white/80 uppercase tracking-wider mb-3">Tập phim</h2>
+          <div className="mt-6 sm:mt-8">
+            <h2 className="text-base sm:text-lg font-semibold text-white leading-tight line-clamp-2">{currentMovie.name}</h2>
+            <p className="text-[#fde047] font-medium text-sm mt-1 mb-3">Đang xem: Tập {currentEpisode.name}</p>
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <div className="relative shrink-0">
                 <button
@@ -535,7 +681,7 @@ export default function EpisodeContent({
                 PHỤ ĐỀ
               </button>
             </div>
-            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-2">
+            <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-2 sm:gap-2">
               {episodeNamesToShow.map((name) => {
                 const list = currentServerByName.get(name) || [];
                 const best = [...list].sort((a, b) => (b.type || "").localeCompare(a.type || ""))[0];
@@ -544,7 +690,7 @@ export default function EpisodeContent({
                   <Link
                     key={name}
                     href={best ? `/phim/${currentMovie.slug}/${best.slug}-${best.id}` : "#"}
-                    className={`min-h-[48px] flex items-center justify-center gap-1.5 px-3 py-3 rounded-xl text-sm font-semibold transition-colors touch-manipulation ${isActive ? "bg-[#f97316] text-white ring-2 ring-[#f97316]/50" : "bg-[#25252b] text-white/90 hover:bg-[#2a2a32] border border-white/5"}`}
+                    className={`min-h-[44px] sm:min-h-[48px] flex items-center justify-center gap-1 px-2 sm:px-3 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-semibold transition-colors touch-manipulation active:scale-[0.98] ${isActive ? "bg-[#f97316] text-white ring-2 ring-[#f97316]/50" : "bg-[#25252b] text-white/90 hover:bg-[#2a2a32] border border-white/5"}`}
                   >
                     {isActive ? <PlayIconSmall /> : null}
                     <span>Tập {name}</span>
@@ -562,82 +708,125 @@ export default function EpisodeContent({
               </button>
             )}
           </div>
-          <div className="mt-3 sm:mt-4 overflow-x-auto pb-1 -mx-1 flex gap-2 min-h-[44px] items-center border-b border-white/10">
-              <button type="button" onClick={toggleFavorite} className="shrink-0 flex items-center gap-1.5 px-2 sm:px-3 py-2 rounded-lg text-white/90 hover:bg-white/10" title="Yêu thích">
-                <HeartIcon filled={favorite} />
-                <span className="text-xs sm:text-sm font-medium">Yêu thích</span>
-              </button>
-              <button type="button" onClick={() => setPlaylistModalOpen(true)} className="shrink-0 flex items-center gap-1.5 px-2 sm:px-3 py-2 rounded-lg text-white/90 hover:bg-white/10" title="Thêm vào">
-                <PlusIcon />
-                <span className="text-xs sm:text-sm font-medium">Thêm vào</span>
-              </button>
-              {playlistModalOpen && (
-                <AddToPlaylistModal
-                  movieSlug={currentMovie.slug}
-                  movieTitle={currentMovie.name}
-                  posterUrl={currentMovie.poster_url || currentMovie.thumb_url || null}
-                  onClose={() => setPlaylistModalOpen(false)}
-                />
-              )}
-              <button type="button" onClick={handleShare} className="shrink-0 flex items-center gap-1.5 px-2 sm:px-3 py-2 rounded-lg text-white/90 hover:bg-white/10" title="Chia sẻ">
-                <ShareIcon />
-                <span className="text-xs sm:text-sm font-medium">Chia sẻ</span>
-              </button>
-              <button type="button" onClick={scrollToReport} className="shrink-0 flex items-center gap-1.5 px-2 sm:px-3 py-2 rounded-lg text-white/90 hover:bg-white/10" title="Báo lỗi">
-                <FlagIcon />
-                <span className="text-xs sm:text-sm font-medium">Báo lỗi</span>
-              </button>
+          <div className="mt-5 sm:mt-6 overflow-x-auto pb-1 -mx-1 flex gap-2 min-h-[44px] items-center border-b border-white/10 touch-manipulation">
+            <button type="button" onClick={toggleFavorite} className="shrink-0 flex items-center gap-1.5 min-h-[44px] px-3 py-2.5 rounded-xl text-white/90 hover:bg-white/10 active:bg-white/15 transition-colors" title="Yêu thích">
+              <HeartIcon filled={favorite} />
+              <span className="text-xs sm:text-sm font-medium">Yêu thích</span>
+            </button>
+            <button type="button" onClick={() => setPlaylistModalOpen(true)} className="shrink-0 flex items-center gap-1.5 min-h-[44px] px-3 py-2.5 rounded-xl text-white/90 hover:bg-white/10 active:bg-white/15 transition-colors" title="Thêm vào">
+              <PlusIcon />
+              <span className="text-xs sm:text-sm font-medium">Thêm vào</span>
+            </button>
+            {playlistModalOpen && (
+              <AddToPlaylistModal
+                movieSlug={currentMovie.slug}
+                movieTitle={currentMovie.name}
+                posterUrl={currentMovie.poster_url || currentMovie.thumb_url || null}
+                onClose={() => setPlaylistModalOpen(false)}
+              />
+            )}
+            <button type="button" onClick={handleShare} className="shrink-0 flex items-center gap-1.5 min-h-[44px] px-3 py-2.5 rounded-xl text-white/90 hover:bg-white/10 active:bg-white/15 transition-colors" title="Chia sẻ">
+              <ShareIcon />
+              <span className="text-xs sm:text-sm font-medium">Chia sẻ</span>
+            </button>
+            <button type="button" onClick={scrollToReport} className="shrink-0 flex items-center gap-1.5 min-h-[44px] px-3 py-2.5 rounded-xl text-white/90 hover:bg-white/10 active:bg-white/15 transition-colors" title="Báo lỗi">
+              <FlagIcon />
+              <span className="text-xs sm:text-sm font-medium">Báo lỗi</span>
+            </button>
           </div>
 
-          <div className="mt-4 sm:mt-6 flex flex-col gap-4">
-            <div className="w-full max-w-[280px] mx-auto sm:mx-0 sm:float-left sm:mr-4 sm:mb-2 aspect-2/3 rounded-xl overflow-hidden bg-[#232328] shrink-0">
+          <div className="mt-6 sm:mt-8 grid grid-cols-[auto_1fr] gap-3 sm:gap-4 items-start">
+            <div className="w-[100px] sm:w-[160px] lg:w-[200px] aspect-2/3 rounded-xl overflow-hidden bg-[#232328] shrink-0">
               {(currentMovie.poster_url || currentMovie.thumb_url) ? (
                 <Image src={currentMovie.poster_url || currentMovie.thumb_url || ""} alt="" width={280} height={420} className="object-cover w-full h-full" unoptimized={(currentMovie.poster_url || currentMovie.thumb_url || "").startsWith("http")} />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-white/40 text-sm">Poster</div>
               )}
             </div>
-            <div className="min-w-0 sm:overflow-hidden">
-              <h1 className="text-lg sm:text-xl font-bold text-white leading-tight">{currentMovie.name}</h1>
-              {currentMovie.origin_name ? <p className="text-white/60 text-sm mt-1">{currentMovie.origin_name}</p> : null}
-              <div className="flex flex-wrap gap-2 mt-2">
-                {currentMovie.quality ? <span className="px-2 py-1 rounded bg-white/15 text-white text-xs">{currentMovie.quality}</span> : null}
-                {currentMovie.episode_time ? <span className="px-2 py-1 rounded bg-white/15 text-white text-xs">{currentMovie.episode_time}/tập</span> : null}
-                {currentMovie.language ? <span className="px-2 py-1 rounded bg-white/15 text-white text-xs">{currentMovie.language}</span> : null}
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-xl font-bold text-white leading-tight line-clamp-2">{currentMovie.name}</h1>
+              {currentMovie.origin_name ? (
+                <p className="text-[#fde047] text-xs sm:text-base mt-1 font-medium line-clamp-1">{currentMovie.origin_name}</p>
+              ) : null}
+              <div className="flex flex-wrap gap-1.5 mt-2 items-center">
+                {currentMovie.publish_year && (
+                  <span className="inline-flex items-center px-2 py-1 text-white text-xs font-medium bg-[#1f1f23] border border-white/10">
+                    {String(currentMovie.publish_year)}
+                  </span>
+                )}
+                {currentMovie.episode_time ? (
+                  <span className="inline-flex items-center px-2 py-1 text-white text-xs font-medium bg-[#1f1f23] border border-white/10">
+                    {String(currentMovie.episode_time).toLowerCase().includes("tập")
+                      ? currentMovie.episode_time
+                      : /^\d+$/.test(String(currentMovie.episode_time).trim())
+                        ? `${currentMovie.episode_time} phút/tập`
+                        : `${currentMovie.episode_time}/tập`}
+                  </span>
+                ) : null}
+                {currentMovie.quality && (
+                  <span className="inline-flex items-center px-2 py-1 text-white text-xs font-semibold bg-[#f97316]/25 border border-[#f97316]/50">
+                    {currentMovie.quality}
+                  </span>
+                )}
+                {currentMovie.language && (
+                  <span className="inline-flex items-center px-2 py-1 text-white text-xs font-semibold bg-[#f97316]/25 border border-[#f97316]/50">
+                    {currentMovie.language}
+                  </span>
+                )}
               </div>
-              <div className="flex flex-wrap gap-2 mt-2">
+              <div className="flex flex-wrap gap-1.5 mt-2">
                 {(currentMovie.categories || []).map((c) => (
-                  <Link key={c.id} href={c.url || `/the-loai/${c.slug}`} className="px-2.5 py-1 rounded-lg bg-[#25252b] text-white text-xs sm:text-sm hover:bg-[#2a2a32] transition-colors">
+                  <Link
+                    key={c.id}
+                    href={c.url || `/the-loai/${c.slug}`}
+                    className="inline-flex items-center px-2 py-1 text-white text-xs font-semibold bg-white/15 border border-white/25 hover:bg-white/25 hover:border-white/40 transition-colors duration-200"
+                  >
                     {c.name}
                   </Link>
                 ))}
               </div>
-              {currentMovie.content ? (
-                <p className="text-white/80 text-sm leading-relaxed mt-3">{stripHtml(currentMovie.content)}</p>
-              ) : null}
               {(currentMovie.actors?.length ?? 0) > 0 ? (
-                <div className="mt-4">
-                  <h3 className="text-white font-semibold text-sm mb-2">Diễn viên</h3>
-                  <div className="flex flex-wrap gap-2 sm:gap-3">
+                <div className="mt-3 sm:mt-4 hidden sm:block">
+                  <h3 className="text-white font-semibold text-xs sm:text-sm mb-1.5 sm:mb-2">Diễn viên</h3>
+                  <div className="flex flex-wrap gap-1.5 sm:gap-3">
                     {(currentMovie.actors || []).slice(0, 8).map((a) => (
-                      <Link key={a.id} href={a.url || "#"} className="flex items-center gap-2 text-white/80 hover:text-white text-sm">
-                        <span className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center text-xs shrink-0">{a.name.charAt(0)}</span>
-                        <span className="truncate max-w-[100px]">{a.name}</span>
+                      <Link key={a.id} href={a.url || "#"} className="flex items-center gap-1.5 sm:gap-2 text-white/80 hover:text-white text-xs sm:text-sm min-h-[32px] sm:min-h-0 py-0.5 touch-manipulation">
+                        <span className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-white/15 flex items-center justify-center text-[10px] sm:text-xs shrink-0">{a.name.charAt(0)}</span>
+                        <span className="truncate max-w-[80px] sm:max-w-[100px]">{a.name}</span>
                       </Link>
                     ))}
-                    {(currentMovie.actors?.length ?? 0) > 8 ? <span className="text-white/50 text-sm">...</span> : null}
+                    {(currentMovie.actors?.length ?? 0) > 8 ? <span className="text-white/50 text-xs sm:text-sm">...</span> : null}
                   </div>
                 </div>
               ) : null}
             </div>
+            {(currentMovie.actors?.length ?? 0) > 0 ? (
+              <div className="min-w-0 col-span-2 sm:hidden mt-3">
+                <h3 className="text-white font-semibold text-xs mb-1.5">Diễn viên</h3>
+                <div className="flex flex-wrap gap-1.5">
+                  {(currentMovie.actors || []).slice(0, 8).map((a) => (
+                    <Link key={a.id} href={a.url || "#"} className="flex items-center gap-1.5 text-white/80 hover:text-white text-xs min-h-[32px] py-0.5 touch-manipulation">
+                      <span className="w-6 h-6 rounded-full bg-white/15 flex items-center justify-center text-[10px] shrink-0">{a.name.charAt(0)}</span>
+                      <span className="truncate max-w-[80px]">{a.name}</span>
+                    </Link>
+                  ))}
+                  {(currentMovie.actors?.length ?? 0) > 8 ? <span className="text-white/50 text-xs">...</span> : null}
+                </div>
+              </div>
+            ) : null}
+            {currentMovie.content ? (
+              <div className="min-w-0 col-span-2">
+                <p className="text-white/80 text-sm leading-relaxed">{stripHtml(currentMovie.content)}</p>
+              </div>
+            ) : null}
           </div>
-          <div className="mt-4 flex flex-wrap gap-2 clear-left">
+          <div className="mt-4 flex flex-wrap gap-2">
             {sameSlugSameServer.map((server, idx) => (
               <button
                 key={server.id}
                 type="button"
                 onClick={() => chooseServer(server)}
-                className={`min-h-[40px] sm:min-h-[44px] inline-flex items-center px-3 py-2 rounded-lg text-sm transition-colors touch-manipulation ${currentEpisode.id === server.id ? "bg-white text-[#0a0d0e]" : "bg-[#25252b] text-white hover:bg-[#2a2a32] active:bg-[#2a2a32]"}`}
+                className={`min-h-[44px] inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-medium transition-colors touch-manipulation ${currentEpisode.id === server.id ? "bg-white text-[#0a0d0e]" : "bg-[#25252b] text-white hover:bg-[#2a2a32] active:bg-[#2a2a32]"}`}
               >
                 Nguồn #{idx + 1}
               </button>
@@ -659,14 +848,14 @@ export default function EpisodeContent({
               </div>
               <h2 className="text-lg font-bold text-white mt-6 mb-3">Báo lỗi</h2>
               <div ref={reportSectionRef}>
-              {!reportSent ? (
-                <form onSubmit={handleReport} className="space-y-2">
-                  <textarea value={reportMsg} onChange={(e) => setReportMsg(e.target.value)} placeholder="Nội dung báo lỗi..." rows={2} className="w-full p-2 rounded bg-[#232328] text-white border border-white/10 text-sm resize-none focus:outline-none focus:border-[#ff2a14]" />
-                  <button type="submit" className="px-4 py-2 bg-[#c92626] hover:bg-[#d92a2a] text-white font-medium rounded transition-colors">Gửi báo lỗi</button>
-                </form>
-              ) : (
-                <p className="text-white/70 text-sm">Đã gửi báo lỗi.</p>
-              )}
+                {!reportSent ? (
+                  <form onSubmit={handleReport} className="space-y-2">
+                    <textarea value={reportMsg} onChange={(e) => setReportMsg(e.target.value)} placeholder="Nội dung báo lỗi..." rows={2} className="w-full p-2 rounded bg-[#232328] text-white border border-white/10 text-sm resize-none focus:outline-none focus:border-[#ff2a14]" />
+                    <button type="submit" className="px-4 py-2 bg-[#c92626] hover:bg-[#d92a2a] text-white font-medium rounded transition-colors">Gửi báo lỗi</button>
+                  </form>
+                ) : (
+                  <p className="text-white/70 text-sm">Đã gửi báo lỗi.</p>
+                )}
               </div>
               <h2 className="text-lg font-bold text-white mt-6 mb-3">Có thể bạn thích</h2>
               <LazyMovieGrid movies={relatedSlice} />
@@ -692,24 +881,6 @@ export default function EpisodeContent({
                 </div>
               )}
             </div>
-            <aside className="w-full lg:w-72 shrink-0">
-              <h2 className="text-lg font-bold text-white mb-3">Xem nhiều</h2>
-              <div className="bg-[#25252b] rounded-lg p-3 space-y-2">
-                {movie_related_top.map((movie, idx) => {
-                  const key = idx + 1;
-                  const numClass = key === 1 ? "bg-[#ff2a14]" : key === 2 ? "bg-[#f2a20c]" : key === 3 ? "bg-[#148aff]" : "bg-[#32323c]";
-                  return (
-                    <Link key={movie.id} href={movie.url || `/phim/${movie.slug}`} className="flex items-center gap-3 p-2 rounded hover:bg-white/5 transition-colors">
-                      <span className={`w-7 h-7 flex items-center justify-center rounded text-white text-sm font-bold shrink-0 ${numClass}`}>{key}</span>
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-white text-sm font-medium truncate">{movie.name}</h3>
-                        <p className="text-white/50 text-xs">Lượt xem: {movie.view_total ?? 0}</p>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            </aside>
           </div>
         )}
       </LazyWhenInView>

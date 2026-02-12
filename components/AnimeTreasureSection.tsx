@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { Movie } from "@/types";
 
 const LOADING_GIF = "/loading.gif";
@@ -20,7 +20,7 @@ function ChevronRight() {
 }
 
 export default function AnimeTreasureSection({
-  title = "Kho Tàng Anime",
+  title = "Kho phim hành động",
   link,
   featured,
   movies,
@@ -33,6 +33,10 @@ export default function AnimeTreasureSection({
   watchUrl?: string;
 }) {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const activeThumbRef = useRef<HTMLButtonElement>(null);
+  const thumbListRef = useRef<HTMLDivElement>(null);
+  const touchStartX = useRef(0);
+  const didSwipe = useRef(false);
   const current = movies[currentIndex] ?? featured;
   const thumb = current.poster_url || current.thumb_url || LOADING_GIF;
   const movieUrl = current.url || `/phim/${current.slug}`;
@@ -41,6 +45,53 @@ export default function AnimeTreasureSection({
 
   const selectMovie = useCallback((idx: number) => {
     setCurrentIndex(idx);
+  }, []);
+
+  useEffect(() => {
+    if (movies.length <= 1) return;
+    const id = setInterval(() => {
+      setCurrentIndex((i) => (i + 1) % movies.length);
+    }, 5000);
+    return () => clearInterval(id);
+  }, [movies.length]);
+
+  useEffect(() => {
+    const list = thumbListRef.current;
+    const thumb = activeThumbRef.current;
+    if (!list || !thumb) return;
+    const listWidth = list.clientWidth;
+    const thumbLeft = thumb.offsetLeft;
+    const thumbWidth = thumb.offsetWidth;
+    const scrollLeft = thumbLeft - listWidth / 2 + thumbWidth / 2;
+    list.scrollTo({ left: Math.max(0, scrollLeft), behavior: "smooth" });
+  }, [currentIndex]);
+
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    didSwipe.current = false;
+  }, []);
+
+  const onTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      const endX = e.changedTouches[0].clientX;
+      const delta = endX - touchStartX.current;
+      const minSwipe = 50;
+      if (delta < -minSwipe && movies.length > 1) {
+        didSwipe.current = true;
+        setCurrentIndex((i) => (i + 1) % movies.length);
+      } else if (delta > minSwipe && movies.length > 1) {
+        didSwipe.current = true;
+        setCurrentIndex((i) => (i - 1 + movies.length) % movies.length);
+      }
+    },
+    [movies.length]
+  );
+
+  const onCardClick = useCallback((e: React.MouseEvent) => {
+    if (didSwipe.current) {
+      e.preventDefault();
+      didSwipe.current = false;
+    }
   }, []);
 
   return (
@@ -55,8 +106,79 @@ export default function AnimeTreasureSection({
           <ChevronRight />
         </Link>
       </div>
-      <div className="rounded-2xl overflow-hidden bg-[#0f0f12] border border-white/10">
-        <div className="relative flex flex-col lg:flex-row min-h-[320px] lg:min-h-[380px]">
+      <div className="rounded-2xl overflow-hidden bg-[#0f0f12] shadow-lg">
+        <div
+          className="block lg:hidden touch-pan-y"
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+        >
+          <Link href={movieUrl} onClick={onCardClick} className="block">
+          <div className="relative aspect-video w-full rounded-t-2xl overflow-hidden">
+            <Image
+              src={thumb}
+              alt={current.name}
+              fill
+              className="object-cover"
+              sizes="100vw"
+              unoptimized={thumb.startsWith("http")}
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = LOADING_GIF;
+              }}
+            />
+          </div>
+          <div className="p-4 pb-2">
+            <h3 className="text-lg font-bold text-white leading-tight">{current.name}</h3>
+            {current.origin_name && (
+              <p className="text-amber-400 text-sm mt-1">{current.origin_name}</p>
+            )}
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {current.publish_year && (
+                <span className="px-2.5 py-1 rounded-full bg-white/15 text-white text-xs">
+                  {String(current.publish_year)}
+                </span>
+              )}
+              {current.quality && (
+                <span className="px-2.5 py-1 rounded-full bg-white/15 text-white text-xs">
+                  {current.quality}
+                </span>
+              )}
+              {epText && (
+                <span className="px-2.5 py-1 rounded-full bg-white/15 text-white text-xs">
+                  {epText}
+                </span>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {(current.categories || []).slice(0, 4).map((c) => (
+                <span key={c.id} className="px-2.5 py-1 rounded-full bg-white/10 text-white text-xs">
+                  {c.name}
+                </span>
+              ))}
+            </div>
+            {content ? (
+              <p className="text-white/80 text-sm mt-3 leading-relaxed line-clamp-2">
+                {content}
+              </p>
+            ) : null}
+          </div>
+          </Link>
+        </div>
+        {movies.length > 0 && (
+          <div className="flex justify-center gap-1.5 py-4 lg:hidden">
+            {movies.map((_, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => selectMovie(idx)}
+                className={`w-2 h-2 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
+                  idx === currentIndex ? "bg-amber-500" : "bg-white/25"
+                }`}
+                aria-label={`Phim ${idx + 1}`}
+              />
+            ))}
+          </div>
+        )}
+        <div className="hidden lg:flex relative flex-col lg:flex-row min-h-[320px] lg:min-h-[380px]">
           <div className="relative z-10 flex-1 p-4 sm:p-6 lg:p-8 flex flex-col justify-center order-2 lg:order-1 max-w-xl">
             <Link href={movieUrl} className="block group mb-3">
               <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight group-hover:text-amber-400 transition-colors">
@@ -116,44 +238,49 @@ export default function AnimeTreasureSection({
                 (e.target as HTMLImageElement).src = LOADING_GIF;
               }}
             />
+            {movies.length > 0 && (
+              <div
+                ref={thumbListRef}
+                className="absolute bottom-0 left-0 right-0 z-20 flex gap-1.5 p-2 overflow-x-auto scrollbar-hide snap-x snap-mandatory pl-[max(0.5rem,50%-1.75rem)] pr-[max(0.5rem,50%-1.75rem)]"
+                style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+              >
+                {movies.map((movie, idx) => {
+                  const isActive = idx === currentIndex;
+                  const img = movie.thumb_url || movie.poster_url || LOADING_GIF;
+                  return (
+                    <button
+                      key={movie.id}
+                      ref={isActive ? activeThumbRef : null}
+                      type="button"
+                      onClick={() => selectMovie(idx)}
+                      className={`shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full overflow-hidden transition-all duration-300 snap-center focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 [&>div]:rounded-full [&>div]:overflow-hidden ${
+                        isActive ? "ring-2 ring-amber-500 ring-offset-1 ring-offset-[#0f0f12] opacity-100" : "opacity-25 hover:opacity-50"
+                      }`}
+                      title={movie.name}
+                    >
+                      <div
+                        className="relative w-full h-full bg-[#232328] rounded-full overflow-hidden"
+                        style={{ transform: "translateZ(0)", clipPath: "circle(50% at 50% 50%)", WebkitClipPath: "circle(50% at 50% 50%)" }}
+                      >
+                        <Image
+                          src={img}
+                          alt=""
+                          fill
+                          className="object-cover"
+                          sizes="56px"
+                          unoptimized={img.startsWith("http")}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = LOADING_GIF;
+                          }}
+                        />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
-        {movies.length > 0 && (
-          <div
-            className="flex gap-2 p-3 overflow-x-auto scrollbar-hide border-t border-white/10"
-            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-          >
-            {movies.map((movie, idx) => {
-              const isActive = idx === currentIndex;
-              const img = movie.thumb_url || movie.poster_url || LOADING_GIF;
-              return (
-                <button
-                  key={movie.id}
-                  type="button"
-                  onClick={() => selectMovie(idx)}
-                  className={`shrink-0 w-20 h-28 sm:w-24 sm:h-32 rounded-lg overflow-hidden transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
-                    isActive ? "ring-2 ring-amber-500 ring-offset-2 ring-offset-[#0f0f12]" : "opacity-70 hover:opacity-100 border border-white/10"
-                  }`}
-                  title={movie.name}
-                >
-                  <div className="relative w-full h-full bg-[#232328]">
-                    <Image
-                      src={img}
-                      alt=""
-                      fill
-                      className="object-cover"
-                      sizes="96px"
-                      unoptimized={img.startsWith("http")}
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = LOADING_GIF;
-                      }}
-                    />
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
       </div>
     </section>
   );

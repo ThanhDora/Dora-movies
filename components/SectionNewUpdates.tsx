@@ -16,7 +16,7 @@ function MovieCardSmall({ movie }: { movie: Movie }) {
   const url = movie.url || `/phim/${movie.slug}`;
   return (
     <Link href={url} className="group block shrink-0 w-[100px] sm:w-[120px] md:w-[140px]" title={movie.name}>
-      <div className="relative aspect-2/3 rounded-xl overflow-hidden bg-[#232328] border border-white/10 shadow-lg">
+      <div className="relative aspect-2/3 rounded-xl overflow-hidden bg-[#232328] shadow-lg">
         <span className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity z-10">
           <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24">
             <path d="M8 5v14l11-7z" />
@@ -69,7 +69,7 @@ export default function SectionNewUpdates({ item }: { item: SectionData }) {
   if (!movies.length) return null;
 
   return (
-    <section className="mb-10 relative overflow-hidden rounded-2xl border border-white/10 bg-linear-to-b from-[#1a1a1f] to-[#0f0f12] p-4 sm:p-5 shadow-xl">
+    <section className="mb-10 relative overflow-hidden rounded-2xl bg-linear-to-b from-[#1a1a1f] to-[#0f0f12] p-4 sm:p-5 shadow-xl">
       <div className="absolute inset-0 pointer-events-none rounded-2xl border border-[#ff2a14]/20" aria-hidden />
       <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div className="flex items-center gap-2">

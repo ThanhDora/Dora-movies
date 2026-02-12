@@ -61,7 +61,6 @@ export default async function PhimPage({
           currentMovie={data.currentMovie}
           episode={data.episode}
           movie_related={data.movie_related}
-          movie_related_top={data.movie_related_top}
           episodePath={second}
           initialProgressSeconds={initialProgressSeconds}
           isLoggedIn={!!session?.user?.id}
@@ -82,7 +81,6 @@ export default async function PhimPage({
     <MovieSingleContent
       currentMovie={data.currentMovie}
       movie_related={data.movie_related}
-      movie_related_top={data.movie_related_top}
       watchUrl={getWatchUrl(data.currentMovie)}
       trailerId={getYoutubeId(data.currentMovie.trailer_url || "")}
     />

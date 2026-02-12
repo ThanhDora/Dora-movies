@@ -55,6 +55,40 @@ export async function sendVerificationEmail(email: string, token: string): Promi
   }
 }
 
+export async function sendPasswordResetEmail(email: string, token: string): Promise<boolean> {
+  const url = `${getBaseUrl()}/reset-password?token=${encodeURIComponent(token)}`;
+  const html = `
+    <p>Xin chào,</p>
+    <p>Bạn đã yêu cầu đặt lại mật khẩu tại ${siteName}. Nhấn vào link dưới đây để đặt mật khẩu mới:</p>
+    <p><a href="${url}" style="color:#e6b800;font-weight:bold">Đặt lại mật khẩu</a></p>
+    <p>Link có hiệu lực 1 giờ. Nếu không phải bạn yêu cầu, hãy bỏ qua email này.</p>
+    <p>— ${siteName}</p>
+  `;
+  if (process.env.NODE_ENV === "development") {
+    console.log("[Email] Password reset link:", url);
+  }
+  if (!resendApiKey) return false;
+  try {
+    const resend = new Resend(resendApiKey);
+    const from = fromEmail.includes("<") ? fromEmail : `${siteName} <${fromEmail}>`;
+    const { error } = await resend.emails.send({
+      from,
+      to: [email],
+      subject: `Đặt lại mật khẩu - ${siteName}`,
+      html,
+    });
+    if (error && process.env.NODE_ENV === "development") {
+      console.error("[Email] Password reset send failed:", JSON.stringify(error, null, 2));
+    }
+    return !error;
+  } catch (err) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("[Email] Password reset error:", err);
+    }
+    return false;
+  }
+}
+
 export async function sendLoginNotificationEmail(email: string): Promise<boolean> {
   const time = new Date().toLocaleString("vi-VN");
   const html = `

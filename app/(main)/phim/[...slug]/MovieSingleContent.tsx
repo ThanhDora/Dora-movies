@@ -74,13 +74,11 @@ type TabId = "episodes" | "gallery" | "actors" | "suggestions";
 export default function MovieSingleContent({
   currentMovie,
   movie_related,
-  movie_related_top,
   watchUrl,
   trailerId,
 }: {
   currentMovie: Movie;
   movie_related: Movie[];
-  movie_related_top: Movie[];
   watchUrl: string;
   trailerId: string | null;
 }) {
@@ -235,77 +233,106 @@ export default function MovieSingleContent({
           )}
           <div className="rounded-2xl bg-[#0f0f12]/95 backdrop-blur-sm border border-white/5 overflow-hidden">
             <div className="p-4 sm:p-6 lg:p-8 flex flex-col lg:flex-row gap-6">
-              <div className="flex flex-col sm:flex-row gap-4 flex-1 min-w-0">
-                <div className="shrink-0 mx-auto sm:mx-0">
-                  <div className="relative w-[140px] sm:w-[180px] aspect-2/3 rounded-xl overflow-hidden bg-[#232328] shadow-xl -translate-y-4 sm:translate-y-0">
-                    {watchUrl && (
-                      <Link href={watchUrl} className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 hover:opacity-100 transition-opacity z-10 text-white" title={currentMovie.name}>
-                        <PlayIcon className="w-12 h-12" />
-                      </Link>
-                    )}
-                    <Image src={thumb} alt="" width={180} height={270} unoptimized={thumb.startsWith("http")} className="object-cover w-full h-full" />
-                  </div>
+              <div className="grid grid-cols-[auto_1fr] gap-4 flex-1 min-w-0 items-start">
+                <div className="relative w-[120px] sm:w-[160px] lg:w-[180px] aspect-2/3 rounded-xl overflow-hidden bg-[#232328] shadow-xl shrink-0">
+                  {watchUrl && (
+                    <Link href={watchUrl} className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 hover:opacity-100 transition-opacity z-10 text-white" title={currentMovie.name}>
+                      <PlayIcon className="w-12 h-12" />
+                    </Link>
+                  )}
+                  <Image src={thumb} alt="" width={180} height={270} unoptimized={thumb.startsWith("http")} className="object-cover w-full h-full" />
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="min-w-0">
                   <h1 className="text-xl sm:text-2xl font-bold text-white leading-tight uppercase tracking-tight">
                     {currentMovie.name}
                   </h1>
-                  {currentMovie.origin_name ? <p className="text-white/60 text-sm mt-1">{currentMovie.origin_name}</p> : null}
-                  <p className="text-white/50 text-sm mt-1">
-                    {currentMovie.publish_year}
-                    {currentMovie.episode_current ? ` · ${currentMovie.episode_current}` : ""}
-                    {currentMovie.episode_total ? ` / ${currentMovie.episode_total} tập` : ""}
-                  </p>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {(currentMovie.categories || []).slice(0, 4).map((c) => (
-                      <Link key={c.id} href={c.url || `/the-loai/${c.slug}`} className="px-2.5 py-1 rounded-lg bg-white/10 text-white text-xs font-medium hover:bg-white/15 transition-colors">
+                  {currentMovie.origin_name ? (
+                    <p className="text-[#fde047] text-sm sm:text-base mt-1 font-medium">{currentMovie.origin_name}</p>
+                  ) : null}
+                  <div className="flex flex-wrap gap-1.5 mt-2 items-center">
+                    {currentMovie.publish_year && (
+                      <span className="inline-flex items-center px-2 py-1 text-white text-xs font-medium bg-[#1f1f23] border border-white/10">
+                        {String(currentMovie.publish_year)}
+                      </span>
+                    )}
+                    {currentMovie.episode_time ? (
+                      <span className="inline-flex items-center px-2 py-1 text-white text-xs font-medium bg-[#1f1f23] border border-white/10">
+                        {String(currentMovie.episode_time).toLowerCase().includes("tập")
+                          ? currentMovie.episode_time
+                          : /^\d+$/.test(String(currentMovie.episode_time).trim())
+                            ? `${currentMovie.episode_time} phút/tập`
+                            : `${currentMovie.episode_time}/tập`}
+                      </span>
+                    ) : null}
+                    {currentMovie.episode_current != null && currentMovie.episode_total != null && (
+                      <span className="inline-flex items-center px-2 py-1 text-white/90 text-xs font-medium bg-[#1f1f23] border border-white/10">
+                        {String(currentMovie.episode_current).replace(/\s*[Tt]ập\s*$/i, "")}/{String(currentMovie.episode_total).replace(/\s*[Tt]ập\s*$/i, "")} tập
+                      </span>
+                    )}
+                    {currentMovie.quality && (
+                      <span className="inline-flex items-center px-2 py-1 text-white text-xs font-semibold bg-[#f97316]/25 border border-[#f97316]/50">
+                        {currentMovie.quality}
+                      </span>
+                    )}
+                    {currentMovie.language && (
+                      <span className="inline-flex items-center px-2 py-1 text-white text-xs font-semibold bg-[#f97316]/25 border border-[#f97316]/50">
+                        {currentMovie.language}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {(currentMovie.categories || []).slice(0, 6).map((c) => (
+                      <Link
+                        key={c.id}
+                        href={c.url || `/the-loai/${c.slug}`}
+                        className="inline-flex items-center px-2 py-1 text-white text-xs font-semibold bg-white/15 border border-white/25 hover:bg-white/25 hover:border-white/40 transition-colors duration-200"
+                      >
                         {c.name}
                       </Link>
                     ))}
                   </div>
                   {hasEpisodes && (
                     <p className="text-white/50 text-xs mt-2">
-                      Đã chiếu: {currentMovie.episode_current || episodeNames[episodeNames.length - 1] || "?"}/{currentMovie.episode_total || episodeNames.length || "?"} tập
+                      Đã chiếu: {String(currentMovie.episode_current ?? episodeNames[episodeNames.length - 1] ?? "?").replace(/\s*[Tt]ập\s*$/i, "")}/{String(currentMovie.episode_total ?? episodeNames.length ?? "?").replace(/\s*[Tt]ập\s*$/i, "")} tập
                     </p>
                   )}
-                  <p className="text-white/70 text-sm mt-3 line-clamp-4">
-                    {currentMovie.content ? stripHtml(currentMovie.content) : ""}
-                  </p>
                 </div>
               </div>
-              <div className="shrink-0 flex flex-col items-start lg:items-end gap-3">
-                {watchUrl && (
-                  <Link
-                    href={watchUrl}
-                    className="inline-flex items-center gap-2 min-h-[48px] px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-sm transition-colors"
-                  >
-                    <PlayIcon className="w-5 h-5" />
-                    Xem Ngay
-                  </Link>
-                )}
-                {trailerId && (
-                  <button
-                    type="button"
-                    onClick={() => setTrailerOpen(true)}
-                    className="inline-flex items-center gap-2 min-h-[44px] px-4 py-2 rounded-xl bg-white/10 text-white font-medium text-sm hover:bg-white/15 transition-colors"
-                  >
-                    <PlayIcon className="w-4 h-4" />
-                    Trailer
-                  </button>
-                )}
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={toggleFavorite} className="inline-flex items-center gap-2 min-h-[40px] px-3 py-2 rounded-xl bg-[#25252b] text-white/90 hover:bg-[#2a2a32] text-sm font-medium transition-colors" title="Yêu thích">
-                    <HeartIcon filled={favorite} />
-                    Yêu thích
+              <div className="w-full lg:w-auto shrink-0 flex flex-col items-stretch lg:items-end gap-4 lg:gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 lg:flex lg:flex-row lg:gap-3">
+                  {watchUrl && (
+                    <Link
+                      href={watchUrl}
+                      className="inline-flex items-center justify-center gap-2 min-h-[48px] px-6 py-3 rounded-xl bg-[#f97316] hover:bg-[#fb923c] text-white font-bold text-sm transition-colors sm:col-span-2 lg:col-span-none lg:px-8 shadow-lg shadow-[#f97316]/25"
+                    >
+                      <PlayIcon className="w-5 h-5 shrink-0" />
+                      Xem Ngay
+                    </Link>
+                  )}
+                  {trailerId && (
+                    <button
+                      type="button"
+                      onClick={() => setTrailerOpen(true)}
+                      className="inline-flex items-center justify-center gap-2 min-h-[48px] px-5 py-2.5 rounded-xl bg-[#25252b] text-white font-medium text-sm hover:bg-[#2a2a32] border border-white/10 transition-colors lg:min-h-[48px]"
+                    >
+                      <PlayIcon className="w-4 h-4 shrink-0" />
+                      Trailer
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-3 lg:flex lg:flex-row lg:gap-2 lg:flex-nowrap">
+                  <button type="button" onClick={toggleFavorite} className="inline-flex items-center justify-center gap-2 min-h-[44px] px-3 py-2 rounded-xl bg-[#25252b] text-white/90 hover:bg-[#2a2a32] border border-white/5 text-sm font-medium transition-colors lg:min-w-[100px]" title="Yêu thích">
+                    <HeartIcon filled={favorite} className="shrink-0" />
+                    <span className="truncate">Yêu thích</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setPlaylistModalOpen(true)}
-                    className="inline-flex items-center gap-2 min-h-[40px] px-3 py-2 rounded-xl bg-[#25252b] text-white/90 hover:bg-[#2a2a32] text-sm font-medium transition-colors"
+                    className="inline-flex items-center justify-center gap-2 min-h-[44px] px-3 py-2 rounded-xl bg-[#25252b] text-white/90 hover:bg-[#2a2a32] border border-white/5 text-sm font-medium transition-colors lg:min-w-[100px]"
                     title="Thêm vào"
                   >
-                    <PlusIcon />
-                    Thêm vào
+                    <PlusIcon className="shrink-0" />
+                    <span className="truncate">Thêm vào</span>
                   </button>
                   {playlistModalOpen && (
                     <AddToPlaylistModal
@@ -315,22 +342,29 @@ export default function MovieSingleContent({
                       onClose={() => setPlaylistModalOpen(false)}
                     />
                   )}
-                  <button type="button" onClick={handleShare} className="inline-flex items-center gap-2 min-h-[40px] px-3 py-2 rounded-xl bg-[#25252b] text-white/90 hover:bg-[#2a2a32] text-sm font-medium transition-colors" title="Chia sẻ">
-                    <ShareIcon />
-                    {shareCopied ? "Đã copy link" : "Chia sẻ"}
+                  <button type="button" onClick={handleShare} className="inline-flex items-center justify-center gap-2 min-h-[44px] px-3 py-2 rounded-xl bg-[#25252b] text-white/90 hover:bg-[#2a2a32] border border-white/5 text-sm font-medium transition-colors lg:min-w-[100px]" title="Chia sẻ">
+                    <ShareIcon className="shrink-0" />
+                    <span className="truncate">{shareCopied ? "Đã copy" : "Chia sẻ"}</span>
                   </button>
-                  <a href="#comments" className="inline-flex items-center gap-2 min-h-[40px] px-3 py-2 rounded-xl bg-[#25252b] text-white/90 hover:bg-[#2a2a32] text-sm font-medium transition-colors" title="Bình luận">
-                    <CommentIcon />
-                    Bình luận
+                  <a href="#comments" className="inline-flex items-center justify-center gap-2 min-h-[44px] px-3 py-2 rounded-xl bg-[#25252b] text-white/90 hover:bg-[#2a2a32] border border-white/5 text-sm font-medium transition-colors lg:min-w-[100px]" title="Bình luận">
+                    <CommentIcon className="shrink-0" />
+                    <span className="truncate">Bình luận</span>
                   </a>
                 </div>
-                <div className="flex items-center gap-2 text-white/80 text-sm">
-                  <svg className="w-5 h-5 text-amber-400" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+                <div className="flex items-center justify-center lg:justify-end gap-2 text-white/80 text-sm py-1 lg:pt-1">
+                  <svg className="w-5 h-5 text-amber-400 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
                   <span className="font-semibold">{(currentMovie.rating_star ?? 0).toFixed(1)}</span>
-                  <span>ĐÁNH GIÁ</span>
+                  <span className="text-white/60">Đánh giá</span>
                 </div>
               </div>
             </div>
+            {currentMovie.content ? (
+              <div className="px-4 sm:px-6 lg:px-8 pb-4 sm:pb-6 lg:pb-8 pt-0">
+                <p className="text-white/70 text-sm leading-relaxed">
+                  {stripHtml(currentMovie.content)}
+                </p>
+              </div>
+            ) : null}
 
             <div className="border-t border-white/10">
               <div className="flex flex-wrap gap-0">
@@ -413,24 +447,6 @@ export default function MovieSingleContent({
             <h2 className="text-lg font-bold text-white mt-4 mb-3">Bình luận</h2>
             <div className="w-full bg-white rounded-lg overflow-hidden">
               <div className="fb-comments w-full" data-href={movieUrl} data-width="100%" data-numposts={5} data-colorscheme="light" data-lazy="true" />
-            </div>
-          </div>
-          <div className="mt-6 rounded-2xl bg-[#0f0f12]/95 backdrop-blur-sm border border-white/5 p-4 sm:p-6">
-            <h2 className="text-lg font-bold text-white mb-3">Xem nhiều</h2>
-            <div className="space-y-2">
-              {movie_related_top.map((movie, idx) => {
-                const key = idx + 1;
-                const numClass = key === 1 ? "bg-[#ff2a14]" : key === 2 ? "bg-[#f2a20c]" : key === 3 ? "bg-[#148aff]" : "bg-[#32323c]";
-                return (
-                  <Link key={movie.id} href={movie.url || `/phim/${movie.slug}`} className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-colors">
-                    <span className={`w-8 h-8 flex items-center justify-center rounded-lg text-white text-sm font-bold shrink-0 ${numClass}`}>{key}</span>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-white text-sm font-medium truncate">{movie.name}</h3>
-                      <p className="text-white/50 text-xs">Lượt xem: {movie.view_total ?? 0}</p>
-                    </div>
-                  </Link>
-                );
-              })}
             </div>
           </div>
         </div>

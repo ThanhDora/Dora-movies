@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useState, useRef, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { search } from "@/lib/api";
+import AuthDialog from "@/components/AuthDialog";
 import type { MenuItem } from "@/types";
 import type { SearchResultItem } from "@/types";
 
@@ -51,6 +52,7 @@ export default function Header({
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [openMobileMenu, setOpenMobileMenu] = useState<string | null>(null);
   const [headerSolid, setHeaderSolid] = useState(false);
+  const [authDialogOpen, setAuthDialogOpen] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setHeaderSolid(window.scrollY > 0);
@@ -233,12 +235,16 @@ export default function Header({
                   <span className="truncate">{session.user.name || session.user.email || "Tài khoản"}</span>
                 </Link>
               ) : (
-                <Link href="/login" className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 text-white font-bold text-sm hover:bg-white/15 hover:text-white transition-colors whitespace-nowrap shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setAuthDialogOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 text-white font-bold text-sm hover:bg-white/15 hover:text-white transition-colors whitespace-nowrap shrink-0"
+                >
                   <svg className="w-5 h-5 shrink-0 text-white/90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                   Thành viên
-                </Link>
+                </button>
               )}
             </div>
             <Link
@@ -290,12 +296,16 @@ export default function Header({
                   <span className="truncate">{session.user.name || session.user.email || "Tài khoản"}</span>
                 </Link>
               ) : (
-                <Link href="/login" className="flex items-center gap-3 w-full min-h-[48px] px-4 py-3 rounded-xl bg-white text-[#0a0a0c] font-bold text-sm shrink-0" onClick={closeMenu}>
+                <button
+                  type="button"
+                  onClick={() => { closeMenu(); setAuthDialogOpen(true); }}
+                  className="flex items-center gap-3 w-full min-h-[48px] px-4 py-3 rounded-xl bg-white text-[#0a0a0c] font-bold text-sm shrink-0"
+                >
                   <svg className="w-6 h-6 shrink-0 text-[#0a0a0c]/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                   Thành viên
-                </Link>
+                </button>
               )}
               <Link
                 href="/search"
@@ -351,6 +361,7 @@ export default function Header({
           </div>
         </div>
       )}
+      <AuthDialog open={authDialogOpen} onClose={() => setAuthDialogOpen(false)} />
     </>
   );
 }
