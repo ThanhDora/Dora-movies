@@ -3,8 +3,8 @@ import Link from "next/link";
 const cards = [
   {
     href: "/admin/movies",
-    title: "Phim chờ duyệt",
-    desc: "Duyệt hoặc từ chối phim đồng bộ từ API",
+    title: "Quản lý phim",
+    desc: "Xem tất cả phim, ẩn/hiện và hẹn giờ hiển thị",
   },
   {
     href: "/admin/users",
@@ -38,14 +38,10 @@ export default function AdminDashboard() {
         ))}
       </div>
       <div className="mt-8 rounded-xl border border-white/10 bg-white/5 p-5">
-        <h2 className="font-semibold text-white mb-2">Sync phim từ API</h2>
+        <h2 className="font-semibold text-white mb-2">Đồng bộ phim từ API</h2>
         <p className="text-white/60 text-sm mb-2">
-          Gọi endpoint với header Authorization để đồng bộ phim chờ duyệt.
+          Sử dụng nút "Đồng bộ phim" trong trang Quản lý phim để tải tất cả phim từ API và tự động hiển thị trên web.
         </p>
-        <code className="block text-xs text-white/80 bg-black/30 rounded-lg p-3 overflow-x-auto">
-          POST /api/cron/sync-movies<br />
-          Authorization: Bearer CRON_SECRET
-        </code>
       </div>
     </div>
   );

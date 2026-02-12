@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { loginWithCredentials, signInWithGoogle } from "@/app/(main)/login/actions";
+import Toast from "@/components/Toast";
 
 const DURATION_MS = 200;
 
@@ -77,21 +78,64 @@ export default function AuthDialog({
   const [visible, setVisible] = useState(false);
   const [contentOpacity, setContentOpacity] = useState(1);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const tabTransitionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     setTab(initialTab);
   }, [initialTab, open]);
 
+  useEffect(() => {
+    if (!open) {
+      setEmail("");
+      setPassword("");
+      setName("");
+      setConfirmPassword("");
+      setLoginError("");
+      setRegisterError("");
+      setRegisterDone(false);
+      setLoginShowPassword(false);
+      setRegisterShowPassword(false);
+      setConfirmShowPassword(false);
+      setToast(null);
+      if (formRef.current) {
+        formRef.current.reset();
+      }
+    }
+  }, [open]);
+
   function switchTab(next: "login" | "register") {
     if (next === tab) return;
     if (tabTransitionRef.current) clearTimeout(tabTransitionRef.current);
     setContentOpacity(0);
+    setLoginError("");
+    setRegisterError("");
+    setEmail("");
+    setPassword("");
+    setName("");
+    setConfirmPassword("");
+    setToast(null);
     tabTransitionRef.current = setTimeout(() => {
       tabTransitionRef.current = null;
       setTab(next);
       setContentOpacity(1);
     }, 180);
+  }
+
+  function validateEmail(email: string): boolean {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email.trim().toLowerCase());
+  }
+
+  function validatePassword(password: string): { valid: boolean; message?: string } {
+    if (password.length < 6) {
+      return { valid: false, message: "Mật khẩu phải có ít nhất 6 ký tự." };
+    }
+    if (password.length > 15) {
+      return { valid: false, message: "Mật khẩu không được vượt quá 15 ký tự." };
+    }
+    return { valid: true };
   }
 
   useEffect(() => {
@@ -111,55 +155,162 @@ export default function AuthDialog({
   async function handleLoginSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoginError("");
-    setLoginLoading(true);
+    
     const form = e.currentTarget;
     const formData = new FormData(form);
-    const result = await loginWithCredentials(formData);
-    setLoginLoading(false);
-    if (result.error) {
-      setLoginError(result.error);
-    } else if ("ok" in result && result.ok && result.url) {
-      onClose();
-      window.location.href = result.url;
+    const emailValue = (formData.get("email") as string)?.trim() || "";
+    const passwordValue = formData.get("password") as string;
+
+    if (!emailValue) {
+      const errorMsg = "Vui lòng nhập email.";
+      setLoginError(errorMsg);
+      setToast({ message: errorMsg, type: "error" });
+      return;
+    }
+
+    if (!validateEmail(emailValue)) {
+      const errorMsg = "Email không hợp lệ. Vui lòng kiểm tra lại.";
+      setLoginError(errorMsg);
+      setToast({ message: errorMsg, type: "error" });
+      return;
+    }
+
+    if (!passwordValue || passwordValue.length < 1) {
+      const errorMsg = "Vui lòng nhập mật khẩu.";
+      setLoginError(errorMsg);
+      setToast({ message: errorMsg, type: "error" });
+      return;
+    }
+
+    setLoginLoading(true);
+    try {
+      const result = await loginWithCredentials(formData);
+      if (result.error) {
+        setLoginError(result.error);
+        setToast({ message: result.error, type: "error" });
+      } else if ("ok" in result && result.ok && result.url) {
+        setToast({ message: "Đăng nhập thành công!", type: "success" });
+        setTimeout(() => {
+          onClose();
+          window.location.href = result.url || "/profile";
+        }, 1500);
+      } else {
+        const errorMsg = "Đăng nhập thất bại. Vui lòng thử lại.";
+        setLoginError(errorMsg);
+        setToast({ message: errorMsg, type: "error" });
+      }
+    } catch (error) {
+      const errorMsg = "Có lỗi xảy ra. Vui lòng thử lại sau.";
+      setLoginError(errorMsg);
+      setToast({ message: errorMsg, type: "error" });
+    } finally {
+      setLoginLoading(false);
     }
   }
 
   async function handleRegisterSubmit(e: React.FormEvent) {
     e.preventDefault();
     setRegisterError("");
-    if (password !== confirmPassword) {
-      setRegisterError("Mật khẩu xác nhận không khớp.");
+
+    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedName = name.trim();
+    const trimmedPassword = password.trim();
+
+    if (!trimmedEmail) {
+      const errorMsg = "Vui lòng nhập email.";
+      setRegisterError(errorMsg);
+      setToast({ message: errorMsg, type: "error" });
       return;
     }
-    if (password.length < 6 || password.length > 15) {
-      setRegisterError("Mật khẩu phải từ 6 đến 15 ký tự.");
+
+    if (!validateEmail(trimmedEmail)) {
+      const errorMsg = "Email không hợp lệ. Vui lòng kiểm tra lại.";
+      setRegisterError(errorMsg);
+      setToast({ message: errorMsg, type: "error" });
       return;
     }
+
+    if (!trimmedPassword) {
+      const errorMsg = "Vui lòng nhập mật khẩu.";
+      setRegisterError(errorMsg);
+      setToast({ message: errorMsg, type: "error" });
+      return;
+    }
+
+    const passwordValidation = validatePassword(trimmedPassword);
+    if (!passwordValidation.valid) {
+      setRegisterError(passwordValidation.message!);
+      setToast({ message: passwordValidation.message!, type: "error" });
+      return;
+    }
+
+    if (trimmedPassword !== confirmPassword.trim()) {
+      const errorMsg = "Mật khẩu xác nhận không khớp.";
+      setRegisterError(errorMsg);
+      setToast({ message: errorMsg, type: "error" });
+      return;
+    }
+
+    if (trimmedName && trimmedName.length > 50) {
+      const errorMsg = "Tên người dùng không được vượt quá 50 ký tự.";
+      setRegisterError(errorMsg);
+      setToast({ message: errorMsg, type: "error" });
+      return;
+    }
+
     setRegisterLoading(true);
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password, name: name.trim() || undefined }),
+        body: JSON.stringify({
+          email: trimmedEmail,
+          password: trimmedPassword,
+          name: trimmedName || undefined,
+        }),
       });
+
       const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        setRegisterError(data.error || "Đăng ký thất bại.");
+        const errorMsg = data.error || "Đăng ký thất bại. Vui lòng thử lại.";
+        setRegisterError(errorMsg);
+        setToast({ message: errorMsg, type: "error" });
         setRegisterLoading(false);
         return;
       }
+
       setEmailSent(data.emailSent !== false);
       setRegisterDone(true);
-    } catch {
-      setRegisterError("Không kết nối được. Kiểm tra mạng hoặc thử lại.");
+      setEmail("");
+      setPassword("");
+      setName("");
+      setConfirmPassword("");
+      setToast({
+        message: "Đăng ký thành công! Vui lòng kiểm tra email để xác minh tài khoản.",
+        type: "success",
+      });
+    } catch (error) {
+      const errorMsg = "Không kết nối được. Kiểm tra mạng hoặc thử lại.";
+      setRegisterError(errorMsg);
+      setToast({ message: errorMsg, type: "error" });
+    } finally {
+      setRegisterLoading(false);
     }
-    setRegisterLoading(false);
   }
 
   if (!mounted) return null;
 
   return (
-    <div className="fixed inset-0 z-200 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Đăng nhập / Đăng ký">
+    <>
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+      <div className="fixed inset-0 z-200 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Đăng nhập / Đăng ký">
       <div
         className={`absolute inset-0 bg-black/70 backdrop-blur-md transition-opacity duration-200 ease-out ${visible ? "opacity-100" : "opacity-0"}`}
         onClick={onClose}
@@ -219,17 +370,21 @@ export default function AuthDialog({
                     {loginError}
                   </div>
                 ) : null}
-                <form onSubmit={handleLoginSubmit} className="space-y-4">
+                <form ref={formRef} onSubmit={handleLoginSubmit} className="space-y-4">
                   <div className="relative">
                     <label htmlFor="auth-email" className="sr-only">Email</label>
                     <input
                       id="auth-email"
                       name="email"
                       type="email"
-                      placeholder="Email hoặc Username"
+                      placeholder="Email"
                       autoComplete="email"
                       className={inputBase}
                       required
+                      disabled={loginLoading}
+                      onChange={(e) => {
+                        if (loginError) setLoginError("");
+                      }}
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                       <EnvelopeIcon />
@@ -245,6 +400,10 @@ export default function AuthDialog({
                       autoComplete="current-password"
                       className={inputBase}
                       required
+                      disabled={loginLoading}
+                      onChange={(e) => {
+                        if (loginError) setLoginError("");
+                      }}
                     />
                     <button
                       type="button"
@@ -282,19 +441,21 @@ export default function AuthDialog({
                     setLoginError("");
                     try {
                       await signInWithGoogle();
+                      setToast({ message: "Đang chuyển hướng đến Google...", type: "success" });
                     } catch (e) {
                       const err = e as Error & { digest?: string };
                       if (err.digest?.startsWith("NEXT_REDIRECT")) {
                         return;
                       }
                       setGoogleLoading(false);
+                      let errorMsg = "Không thể kết nối với Google. Vui lòng thử lại.";
                       if (err.message?.includes("redirect_uri_mismatch") || err.message?.includes("invalid_client")) {
-                        setLoginError("Lỗi cấu hình Google OAuth. Vui lòng kiểm tra redirect URI trong Google Cloud Console.");
+                        errorMsg = "Lỗi cấu hình Google OAuth. Vui lòng kiểm tra redirect URI trong Google Cloud Console.";
                       } else if (err.message?.includes("chưa được cấu hình")) {
-                        setLoginError("Google OAuth chưa được cấu hình. Vui lòng liên hệ quản trị viên.");
-                      } else {
-                        setLoginError("Không thể kết nối với Google. Vui lòng thử lại.");
+                        errorMsg = "Google OAuth chưa được cấu hình. Vui lòng liên hệ quản trị viên.";
                       }
+                      setLoginError(errorMsg);
+                      setToast({ message: errorMsg, type: "error" });
                       if (process.env.NODE_ENV === "development") {
                         console.error("[AuthDialog] Google login error:", e);
                       }
@@ -344,10 +505,15 @@ export default function AuthDialog({
                       id="auth-name"
                       type="text"
                       value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="Tên người dùng"
+                      onChange={(e) => {
+                        setName(e.target.value);
+                        if (registerError) setRegisterError("");
+                      }}
+                      placeholder="Tên người dùng (tùy chọn)"
                       autoComplete="username"
                       className={inputBase}
+                      disabled={registerLoading}
+                      maxLength={50}
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                       <UserIcon />
@@ -359,11 +525,15 @@ export default function AuthDialog({
                       id="auth-reg-email"
                       type="email"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (registerError) setRegisterError("");
+                      }}
                       placeholder="Email"
                       autoComplete="email"
                       className={inputBase}
                       required
+                      disabled={registerLoading}
                     />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                       <EnvelopeIcon />
@@ -375,13 +545,17 @@ export default function AuthDialog({
                       id="auth-reg-password"
                       type={registerShowPassword ? "text" : "password"}
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        if (registerError) setRegisterError("");
+                      }}
                       placeholder="Mật khẩu (6-15 ký tự)"
                       autoComplete="new-password"
                       minLength={6}
                       maxLength={15}
                       className={inputBase}
                       required
+                      disabled={registerLoading}
                     />
                     <button
                       type="button"
@@ -398,13 +572,17 @@ export default function AuthDialog({
                       id="auth-reg-confirm"
                       type={confirmShowPassword ? "text" : "password"}
                       value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value);
+                        if (registerError) setRegisterError("");
+                      }}
                       placeholder="Xác nhận mật khẩu"
                       autoComplete="new-password"
                       minLength={6}
                       maxLength={15}
                       className={inputBase}
                       required
+                      disabled={registerLoading}
                     />
                     <button
                       type="button"
@@ -437,19 +615,21 @@ export default function AuthDialog({
                     setRegisterError("");
                     try {
                       await signInWithGoogle();
+                      setToast({ message: "Đang chuyển hướng đến Google...", type: "success" });
                     } catch (e) {
                       const err = e as Error & { digest?: string };
                       if (err.digest?.startsWith("NEXT_REDIRECT")) {
                         return;
                       }
                       setGoogleLoading(false);
+                      let errorMsg = "Không thể kết nối với Google. Vui lòng thử lại.";
                       if (err.message?.includes("redirect_uri_mismatch") || err.message?.includes("invalid_client")) {
-                        setRegisterError("Lỗi cấu hình Google OAuth. Vui lòng kiểm tra redirect URI trong Google Cloud Console.");
+                        errorMsg = "Lỗi cấu hình Google OAuth. Vui lòng kiểm tra redirect URI trong Google Cloud Console.";
                       } else if (err.message?.includes("chưa được cấu hình")) {
-                        setRegisterError("Google OAuth chưa được cấu hình. Vui lòng liên hệ quản trị viên.");
-                      } else {
-                        setRegisterError("Không thể kết nối với Google. Vui lòng thử lại.");
+                        errorMsg = "Google OAuth chưa được cấu hình. Vui lòng liên hệ quản trị viên.";
                       }
+                      setRegisterError(errorMsg);
+                      setToast({ message: errorMsg, type: "error" });
                       if (process.env.NODE_ENV === "development") {
                         console.error("[AuthDialog] Google register error:", e);
                       }
@@ -522,5 +702,6 @@ export default function AuthDialog({
         </div>
       </div>
     </div>
+    </>
   );
 }

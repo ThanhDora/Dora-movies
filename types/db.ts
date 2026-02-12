@@ -24,6 +24,8 @@ export interface DbMovieApproval {
   status: ApprovalStatus;
   approved_by: string | null;
   approved_at: string | null;
+  is_visible: boolean;
+  scheduled_at: string | null;
   created_at: string;
 }
 

@@ -33,21 +33,27 @@ const secret =
     ? Buffer.from(process.env.NEXTAUTH_URL + "fallback-secret-salt", "utf8").toString("base64").slice(0, 32)
     : "production-fallback-secret-min-32-chars");
 
+const isDevelopment = process.env.NODE_ENV === "development";
+
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-  console.warn("[NextAuth] GOOGLE_CLIENT_ID hoặc GOOGLE_CLIENT_SECRET chưa được cấu hình");
+  if (isDevelopment) {
+    console.warn("[NextAuth] GOOGLE_CLIENT_ID hoặc GOOGLE_CLIENT_SECRET chưa được cấu hình");
+  }
 }
 
 const nextAuthUrl = process.env.NEXTAUTH_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 const googleCallbackUrl = `${nextAuthUrl}/api/auth/callback/google`;
 
-console.log("[NextAuth] Google OAuth Config:", {
-  clientId: process.env.GOOGLE_CLIENT_ID ? `${process.env.GOOGLE_CLIENT_ID.substring(0, 30)}...` : "MISSING",
-  callbackUrl: googleCallbackUrl,
-  nextAuthUrl,
-  envNextAuthUrl: process.env.NEXTAUTH_URL,
-  vercelUrl: process.env.VERCEL_URL,
-  nodeEnv: process.env.NODE_ENV,
-});
+if (isDevelopment) {
+  console.log("[NextAuth] Google OAuth Config:", {
+    clientId: process.env.GOOGLE_CLIENT_ID ? `${process.env.GOOGLE_CLIENT_ID.substring(0, 30)}...` : "MISSING",
+    callbackUrl: googleCallbackUrl,
+    nextAuthUrl,
+    envNextAuthUrl: process.env.NEXTAUTH_URL,
+    vercelUrl: process.env.VERCEL_URL,
+    nodeEnv: process.env.NODE_ENV,
+  });
+}
 
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
   throw new Error("GOOGLE_CLIENT_ID và GOOGLE_CLIENT_SECRET phải được cấu hình trong environment variables");
@@ -56,7 +62,7 @@ if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
 export const { handlers, auth, signIn, signOut } = NextAuth({
   secret,
   trustHost: true,
-  debug: process.env.NODE_ENV === "development",
+  debug: isDevelopment,
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID,
@@ -103,7 +109,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       if (account?.provider === "google") {
         if (!user.email || !account?.providerAccountId) {
-          console.error("[NextAuth] Google signIn: missing email or providerAccountId", { email: user.email, providerAccountId: account?.providerAccountId });
+          if (isDevelopment) {
+            console.error("[NextAuth] Google signIn: missing email or providerAccountId", { email: user.email, providerAccountId: account?.providerAccountId });
+          }
           return false;
         }
         try {
@@ -114,7 +122,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           if (user.email) sendLoginNotificationEmail(user.email).catch(() => {});
           return true;
         } catch (e) {
-          console.error("[NextAuth] Google signIn callback error:", e);
+          if (isDevelopment) {
+            console.error("[NextAuth] Google signIn callback error:", e);
+          }
           throw e;
         }
       }
@@ -127,28 +137,52 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return true;
     },
     async jwt({ token, user }) {
-      if (token.email) {
-        const dbUser = await getUserByEmail(token.email);
-        if (dbUser) {
-          token.userId = dbUser.id;
-          token.role = dbUser.role;
-          token.vip_until = dbUser.vip_until;
+      if (user?.id) {
+        token.userId = user.id;
+        try {
+          const dbUser = await getUserById(user.id);
+          if (dbUser) {
+            token.role = dbUser.role;
+            token.vip_until = dbUser.vip_until;
+          }
+        } catch {
+          //
+        }
+      } else if (token.email && !token.userId) {
+        try {
+          const dbUser = await getUserByEmail(token.email);
+          if (dbUser) {
+            token.userId = dbUser.id;
+            token.role = dbUser.role;
+            token.vip_until = dbUser.vip_until;
+          }
+        } catch {
+          //
         }
       }
-      if (user?.id) token.userId = user.id;
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = (token.userId as string) ?? "";
-        session.user.role = (token.role as UserRole) ?? "free";
-        session.user.vip_until = (token.vip_until as string | null) ?? null;
-        const userId = session.user.id;
-        if (userId) {
-          const dbUser = await getUserById(userId);
-          if (dbUser) {
-            if (dbUser.image != null) session.user.image = dbUser.image;
-            session.user.name = dbUser.name ?? session.user.name;
+        if (token.userId) {
+          session.user.id = token.userId as string;
+          session.user.role = (token.role as UserRole) ?? "free";
+          session.user.vip_until = (token.vip_until as string | null) ?? null;
+        } else if (token.email) {
+          try {
+            const dbUser = await getUserByEmail(token.email);
+            if (dbUser) {
+              session.user.id = dbUser.id;
+              session.user.role = dbUser.role;
+              session.user.vip_until = dbUser.vip_until;
+            }
+          } catch {
+            //
+          }
+        }
+        if (!session.user.id) {
+          if (isDevelopment) {
+            console.warn("[NextAuth] Session callback: missing user.id", { token });
           }
         }
       }

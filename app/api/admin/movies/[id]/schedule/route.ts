@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { isAdmin } from "@/lib/vip";
-import { updateMovieApprovalStatus } from "@/lib/db";
+import { updateMovieSchedule } from "@/lib/db";
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
@@ -13,13 +13,11 @@ export async function POST(
   }
   const { id } = await params;
   try {
-    await updateMovieApprovalStatus(id, "approved", session.user.id);
+    const body = await req.json();
+    const scheduledAt = body.scheduledAt ? new Date(body.scheduledAt) : null;
+    await updateMovieSchedule(id, scheduledAt);
     return NextResponse.json({ ok: true });
   } catch (e) {
-    const errorMsg = e instanceof Error ? e.message : String(e);
-    if (process.env.NODE_ENV === "development") {
-      console.error("[approve] Error:", e, { id, userId: session.user.id });
-    }
-    return NextResponse.json({ error: errorMsg }, { status: 400 });
+    return NextResponse.json({ error: String(e) }, { status: 400 });
   }
 }

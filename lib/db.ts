@@ -29,7 +29,7 @@ function toDbUser(u: {
   };
 }
 
-function toDbMovieApproval(m: { id: string; slug: string; source: string; status: string; approvedById: string | null; approvedAt: Date | null; createdAt: Date }): DbMovieApproval {
+function toDbMovieApproval(m: { id: string; slug: string; source: string; status: string; approvedById: string | null; approvedAt: Date | null; isVisible: boolean; scheduledAt: Date | null; createdAt: Date }): DbMovieApproval {
   return {
     id: m.id,
     slug: m.slug,
@@ -37,6 +37,8 @@ function toDbMovieApproval(m: { id: string; slug: string; source: string; status
     status: m.status as ApprovalStatus,
     approved_by: m.approvedById,
     approved_at: m.approvedAt?.toISOString() ?? null,
+    is_visible: m.isVisible,
+    scheduled_at: m.scheduledAt?.toISOString() ?? null,
     created_at: m.createdAt.toISOString(),
   };
 }
@@ -133,11 +135,18 @@ export async function deleteVerificationToken(token: string): Promise<void> {
   await client.verificationToken.deleteMany({ where: { token } });
 }
 
+interface PasswordResetTokenCreateClient {
+  passwordResetToken: {
+    create: (args: { data: { email: string; token: string; expires: Date } }) => Promise<unknown>;
+  };
+}
+
 export async function createPasswordResetToken(email: string, token: string, expires: Date): Promise<void> {
   const prisma = getPrisma();
   if (!prisma) noDb();
   try {
-    await (prisma as any).passwordResetToken.create({ data: { email: email.toLowerCase(), token, expires } });
+    const client = prisma as unknown as PasswordResetTokenCreateClient;
+    await client.passwordResetToken.create({ data: { email: email.toLowerCase(), token, expires } });
   } catch (e) {
     if (process.env.NODE_ENV === "development") {
       console.error("[db] createPasswordResetToken error:", e);
@@ -146,16 +155,30 @@ export async function createPasswordResetToken(email: string, token: string, exp
   }
 }
 
+interface PasswordResetTokenClient {
+  passwordResetToken: {
+    findUnique: (args: { where: { token: string }; select: { email: true; expires: true } }) => Promise<{ email: string; expires: Date } | null>;
+  };
+}
+
 export async function getPasswordResetTokenByToken(token: string): Promise<{ email: string; expires: Date } | null> {
   const prisma = getPrisma();
   if (!prisma) return null;
-  return (prisma as any).passwordResetToken.findUnique({ where: { token }, select: { email: true, expires: true } });
+  const client = prisma as unknown as PasswordResetTokenClient;
+  return client.passwordResetToken.findUnique({ where: { token }, select: { email: true, expires: true } });
+}
+
+interface PasswordResetTokenDeleteClient {
+  passwordResetToken: {
+    deleteMany: (args: { where: { token: string } }) => Promise<unknown>;
+  };
 }
 
 export async function deletePasswordResetToken(token: string): Promise<void> {
   const prisma = getPrisma();
   if (!prisma) noDb();
-  await (prisma as any).passwordResetToken.deleteMany({ where: { token } });
+  const client = prisma as unknown as PasswordResetTokenDeleteClient;
+  await client.passwordResetToken.deleteMany({ where: { token } });
 }
 
 export async function setEmailVerified(email: string): Promise<void> {
@@ -217,8 +240,9 @@ export async function upsertUserFromAuth(params: {
       },
     });
     return toDbUser(u);
-  } catch (e: any) {
-    if (e?.code === "P2002" && e?.meta?.target?.includes("email")) {
+  } catch (e: unknown) {
+    const error = e as { code?: string; meta?: { target?: string[] } };
+    if (error?.code === "P2002" && error?.meta?.target?.includes("email")) {
       const existingByEmail = await prisma.user.findUnique({ where: { email: normalizedEmail } });
       if (existingByEmail) {
         const u = await prisma.user.update({
@@ -232,7 +256,7 @@ export async function upsertUserFromAuth(params: {
         return toDbUser(u);
       }
     }
-    if (e?.code === "P2002" && e?.meta?.target?.includes("authId")) {
+    if (error?.code === "P2002" && error?.meta?.target?.includes("authId")) {
       const existingByAuthId = await prisma.user.findUnique({ where: { authId: params.authId } });
       if (existingByAuthId) {
         const u = await prisma.user.update({
@@ -245,7 +269,7 @@ export async function upsertUserFromAuth(params: {
         return toDbUser(u);
       }
     }
-    throw e;
+    throw error;
   }
 }
 
@@ -258,11 +282,26 @@ export async function getApprovedMovieSlugs(): Promise<Set<string>> {
   }
   const prisma = getPrisma();
   if (!prisma) return new Set();
-  const rows = await prisma.movieApproval.findMany({
-    where: { status: "approved" },
+  const now = new Date();
+  const rows = await (prisma.movieApproval.findMany as unknown as (args: {
+    where: {
+      status: string;
+      isVisible: boolean;
+      OR: Array<{ scheduledAt: null } | { scheduledAt: { lte: Date } }>;
+    };
+    select: { slug: boolean };
+  }) => Promise<Array<{ slug: string }>>)({
+    where: {
+      status: "approved",
+      isVisible: true,
+      OR: [
+        { scheduledAt: null },
+        { scheduledAt: { lte: now } },
+      ],
+    },
     select: { slug: true },
   });
-  const slugs = new Set(rows.map((r: { slug: string }) => r.slug));
+  const slugs = new Set<string>(rows.map((r) => r.slug));
   approvedSlugsCache = { data: slugs, expires: Date.now() + APPROVED_SLUGS_CACHE_TTL };
   return slugs;
 }
@@ -376,15 +415,250 @@ export async function insertMovieApprovals(slugs: string[], source = "doramovies
   return toInsert.length;
 }
 
+export async function upsertMovieVisibility(slug: string, isVisible: boolean, scheduledAt?: Date | null): Promise<void> {
+  const prisma = getPrisma();
+  if (!prisma) noDb();
+  const client = prisma as unknown as {
+    movieApproval: {
+      upsert: (args: {
+        where: { slug: string };
+        create: { slug: string; source: string; status: string; isVisible: boolean; scheduledAt?: Date | null };
+        update: { isVisible: boolean; scheduledAt?: Date | null };
+      }) => Promise<unknown>;
+    };
+  };
+  await client.movieApproval.upsert({
+    where: { slug },
+    create: {
+      slug,
+      source: "doramovies",
+      status: "approved",
+      isVisible,
+      scheduledAt: scheduledAt ?? null,
+    },
+    update: {
+      isVisible,
+      scheduledAt: scheduledAt ?? null,
+    },
+  });
+  clearApprovedSlugsCache();
+}
+
 export async function getPendingMovieApprovals(): Promise<DbMovieApproval[]> {
   const prisma = getPrisma();
   if (!prisma) return [];
-  const list = await prisma.movieApproval.findMany({
+  const client = prisma as unknown as MovieApprovalFindManyClient;
+  const list = await client.movieApproval.findMany({
     where: { status: "pending" },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }],
   });
-  type Row = { id: string; slug: string; source: string; status: string; approvedById: string | null; approvedAt: Date | null; createdAt: Date };
-  return list.map((m: Row) => toDbMovieApproval(m));
+  return list.map((m) => toDbMovieApproval(m));
+}
+
+interface MovieApprovalFindManyClient {
+  movieApproval: {
+    findMany: (args: {
+      where: { status: string };
+      orderBy: Array<{ createdAt?: string; approvedAt?: string }>;
+      skip?: number;
+      take?: number;
+    }) => Promise<Array<{
+      id: string;
+      slug: string;
+      source: string;
+      status: string;
+      approvedById: string | null;
+      approvedAt: Date | null;
+      isVisible: boolean;
+      scheduledAt: Date | null;
+      createdAt: Date;
+    }>>;
+  };
+}
+
+export async function getAllMovies(params?: { page?: number; limit?: number }): Promise<{ movies: DbMovieApproval[]; total: number; page: number; limit: number; totalPages: number }> {
+  const prisma = getPrisma();
+  if (!prisma) return { movies: [], total: 0, page: 1, limit: 20, totalPages: 0 };
+  
+  const page = params?.page || 1;
+  const limit = params?.limit || 20;
+  const skip = (page - 1) * limit;
+
+  try {
+    const rawList = await (prisma.movieApproval.findMany as unknown as (args: {
+      where?: Record<string, unknown>;
+      orderBy?: Array<{ createdAt?: string } | { approvedAt?: string }>;
+      skip?: number;
+      take?: number;
+    }) => Promise<Array<{
+      id: string;
+      slug: string;
+      source: string;
+      status: string;
+      approvedById: string | null;
+      approvedAt: Date | null;
+      isVisible?: boolean;
+      scheduledAt?: Date | null;
+      createdAt: Date;
+    }>>)({
+      orderBy: [{ createdAt: "desc" }],
+      skip: skip,
+      take: limit,
+    });
+
+    const total = await (prisma.movieApproval.count as unknown as () => Promise<number>)();
+
+    const movies: DbMovieApproval[] = rawList.map((m) => ({
+      id: m.id,
+      slug: m.slug,
+      source: m.source,
+      status: m.status as ApprovalStatus,
+      approved_by: m.approvedById ?? null,
+      approved_at: m.approvedAt?.toISOString() ?? null,
+      is_visible: m.isVisible ?? true,
+      scheduled_at: m.scheduledAt?.toISOString() ?? null,
+      created_at: m.createdAt.toISOString(),
+    }));
+
+    const totalPages = Math.ceil(total / limit);
+
+    return { movies, total, page, limit, totalPages };
+  } catch (e) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("[getAllMovies] Error:", e);
+    }
+    throw e;
+  }
+}
+
+export async function getApprovedMovies(params?: { page?: number; limit?: number }): Promise<{ movies: DbMovieApproval[]; total: number; page: number; limit: number; totalPages: number }> {
+  const prisma = getPrisma();
+  if (!prisma) return { movies: [], total: 0, page: 1, limit: 20, totalPages: 0 };
+  
+  const page = params?.page || 1;
+  const limit = params?.limit || 20;
+  const skip = (page - 1) * limit;
+
+  try {
+    const rawList = await (prisma.movieApproval.findMany as unknown as (args: {
+      where: { status: string };
+      orderBy?: Array<{ createdAt?: string } | { approvedAt?: string }>;
+      skip?: number;
+      take?: number;
+    }) => Promise<Array<{
+      id: string;
+      slug: string;
+      source: string;
+      status: string;
+      approvedById: string | null;
+      approvedAt: Date | null;
+      isVisible?: boolean;
+      scheduledAt?: Date | null;
+      createdAt: Date;
+    }>>)({
+      where: { status: "approved" },
+      orderBy: [{ createdAt: "desc" }],
+      skip: skip,
+      take: limit,
+    });
+
+    const total = await (prisma.movieApproval.count as unknown as (args: { where: { status: string } }) => Promise<number>)({
+      where: { status: "approved" },
+    });
+
+    const movies = rawList.map((m) => ({
+      id: m.id,
+      slug: m.slug,
+      source: m.source,
+      status: m.status as ApprovalStatus,
+      approved_by: m.approvedById,
+      approved_at: m.approvedAt?.toISOString() ?? null,
+      is_visible: m.isVisible ?? true,
+      scheduled_at: m.scheduledAt?.toISOString() ?? null,
+      created_at: m.createdAt.toISOString(),
+    }));
+
+    const totalPages = Math.ceil(total / limit);
+
+    return { movies, total, page, limit, totalPages };
+  } catch (e) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("[getApprovedMovies] Error:", e);
+    }
+    throw e;
+  }
+}
+
+interface MovieApprovalUpdateClient {
+  movieApproval: {
+    update: (args: {
+      where: { id: string };
+      data: { isVisible: boolean; status?: string };
+    }) => Promise<unknown>;
+    findUnique: (args: { where: { id: string }; select: { slug: boolean; status: boolean } }) => Promise<{ slug: string; status: string } | null>;
+  };
+}
+
+export async function updateMovieVisibility(id: string, isVisible: boolean): Promise<void> {
+  const prisma = getPrisma();
+  if (!prisma) noDb();
+  try {
+    const client = prisma as unknown as MovieApprovalUpdateClient;
+    const existing = await client.movieApproval.findUnique({
+      where: { id },
+      select: { slug: true, status: true },
+    });
+    if (!existing) {
+      throw new Error(`Movie with id ${id} not found`);
+    }
+    await client.movieApproval.update({
+      where: { id },
+      data: {
+        isVisible,
+        status: existing.status === "pending" ? "approved" : existing.status,
+      },
+    });
+    clearApprovedSlugsCache();
+  } catch (e) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("[updateMovieVisibility] Error:", e, { id, isVisible });
+    }
+    throw e;
+  }
+}
+
+interface MovieApprovalScheduleClient {
+  movieApproval: {
+    update: (args: {
+      where: { id: string };
+      data: { scheduledAt: Date | null };
+    }) => Promise<unknown>;
+  };
+}
+
+export async function updateMovieSchedule(id: string, scheduledAt: Date | null): Promise<void> {
+  const prisma = getPrisma();
+  if (!prisma) noDb();
+  const client = prisma as unknown as MovieApprovalScheduleClient;
+  await client.movieApproval.update({
+    where: { id },
+    data: { scheduledAt },
+  });
+  clearApprovedSlugsCache();
+}
+
+interface MovieApprovalStatusClient {
+  movieApproval: {
+    update: (args: {
+      where: { id: string };
+      data: {
+        status: ApprovalStatus;
+        approvedById: string;
+        approvedAt: Date | null;
+        isVisible?: boolean;
+      };
+    }) => Promise<unknown>;
+  };
 }
 
 export async function updateMovieApprovalStatus(
@@ -394,15 +668,25 @@ export async function updateMovieApprovalStatus(
 ): Promise<void> {
   const prisma = getPrisma();
   if (!prisma) noDb();
-  await prisma.movieApproval.update({
-    where: { id },
-    data: {
-      status,
-      approvedById: approvedBy,
-      approvedAt: status === "approved" ? new Date() : null,
-    },
-  });
-  clearApprovedSlugsCache();
+  
+  try {
+    const client = prisma as unknown as MovieApprovalStatusClient;
+    await client.movieApproval.update({
+      where: { id },
+      data: {
+        status,
+        approvedById: approvedBy,
+        approvedAt: status === "approved" ? new Date() : null,
+        isVisible: status === "approved",
+      },
+    });
+    clearApprovedSlugsCache();
+  } catch (e) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("[updateMovieApprovalStatus] Error:", e, { id, status, approvedBy });
+    }
+    throw e;
+  }
 }
 
 export async function listUsers(params?: { role?: UserRole }): Promise<DbUser[]> {
@@ -435,7 +719,8 @@ export async function deleteUser(userId: string): Promise<void> {
 export async function grantVipManual(
   userId: string,
   durationDays: number,
-  _adminId: string
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _adminId?: string
 ): Promise<void> {
   const prisma = getPrisma();
   if (!prisma) noDb();

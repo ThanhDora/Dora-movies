@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { isAdmin } from "@/lib/vip";
-import { updateMovieApprovalStatus } from "@/lib/db";
+import { updateMovieVisibility } from "@/lib/db";
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
@@ -12,13 +12,16 @@ export async function POST(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { id } = await params;
+  let isVisible = false;
   try {
-    await updateMovieApprovalStatus(id, "approved", session.user.id);
-    return NextResponse.json({ ok: true });
+    const body = await req.json();
+    isVisible = Boolean(body.isVisible);
+    await updateMovieVisibility(id, isVisible);
+    return NextResponse.json({ ok: true, isVisible });
   } catch (e) {
     const errorMsg = e instanceof Error ? e.message : String(e);
     if (process.env.NODE_ENV === "development") {
-      console.error("[approve] Error:", e, { id, userId: session.user.id });
+      console.error("[visibility API] Error:", errorMsg, { id, isVisible });
     }
     return NextResponse.json({ error: errorMsg }, { status: 400 });
   }
