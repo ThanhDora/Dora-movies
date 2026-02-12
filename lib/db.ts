@@ -179,13 +179,26 @@ export async function upsertUserFromAuth(params: {
 }): Promise<DbUser> {
   const prisma = getPrisma();
   if (!prisma) noDb();
-  const existing = await prisma.user.findUnique({ where: { authId: params.authId } });
-  if (existing) {
+  const normalizedEmail = params.email.toLowerCase().trim();
+  const existingByAuthId = await prisma.user.findUnique({ where: { authId: params.authId } });
+  if (existingByAuthId) {
     const u = await prisma.user.update({
-      where: { id: existing.id },
+      where: { id: existingByAuthId.id },
       data: {
-        name: params.name ?? existing.name,
-        image: params.image ?? existing.image,
+        name: params.name ?? existingByAuthId.name,
+        image: params.image ?? existingByAuthId.image,
+      },
+    });
+    return toDbUser(u);
+  }
+  const existingByEmail = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+  if (existingByEmail) {
+    const u = await prisma.user.update({
+      where: { id: existingByEmail.id },
+      data: {
+        authId: params.authId,
+        name: params.name ?? existingByEmail.name,
+        image: params.image ?? existingByEmail.image,
       },
     });
     return toDbUser(u);
@@ -193,7 +206,7 @@ export async function upsertUserFromAuth(params: {
   const u = await prisma.user.create({
     data: {
       authId: params.authId,
-      email: params.email,
+      email: normalizedEmail,
       name: params.name ?? null,
       image: params.image ?? null,
       role: "free",
