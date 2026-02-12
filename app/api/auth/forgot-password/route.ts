@@ -21,8 +21,12 @@ export async function POST(req: Request) {
     await sendPasswordResetEmail(email, token);
     return NextResponse.json({ ok: true });
   } catch (e) {
+    const errorMsg = e instanceof Error ? e.message : String(e);
     if (process.env.NODE_ENV === "development") {
-      console.error("[forgot-password]", e);
+      console.error("[forgot-password]", errorMsg, e);
+    }
+    if (errorMsg.includes("passwordResetToken") || errorMsg.includes("does not exist")) {
+      return NextResponse.json({ error: "Hệ thống đang cập nhật. Vui lòng thử lại sau vài phút." }, { status: 500 });
     }
     return NextResponse.json({ error: "Có lỗi xảy ra. Vui lòng thử lại." }, { status: 500 });
   }

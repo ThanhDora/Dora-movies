@@ -38,7 +38,17 @@ export async function loginWithCredentials(formData: FormData) {
 }
 
 export async function signInWithGoogle() {
-  await signIn("google", { redirectTo: "/?login=success" });
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    throw new Error("Google OAuth chưa được cấu hình. Vui lòng thêm GOOGLE_CLIENT_ID và GOOGLE_CLIENT_SECRET vào .env");
+  }
+  try {
+    await signIn("google", { redirectTo: "/?login=success" });
+  } catch (e) {
+    if (process.env.NODE_ENV === "development") {
+      console.error("[signInWithGoogle]", e);
+    }
+    throw e;
+  }
 }
 
 export async function signInWithFacebook() {

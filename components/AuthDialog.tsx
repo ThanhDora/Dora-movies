@@ -76,6 +76,7 @@ export default function AuthDialog({
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
   const [contentOpacity, setContentOpacity] = useState(1);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const tabTransitionRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -275,13 +276,37 @@ export default function AuthDialog({
                     <span className="bg-[#1a1a1e] px-3 text-xs text-white/50 uppercase tracking-wider">Hoặc</span>
                   </div>
                 </div>
-                <form action={signInWithGoogle} className="flex">
+                <form
+                  action={async () => {
+                    setGoogleLoading(true);
+                    try {
+                      await signInWithGoogle();
+                    } catch (e) {
+                      setGoogleLoading(false);
+                      setLoginError("Không thể kết nối với Google. Vui lòng thử lại.");
+                    }
+                  }}
+                  className="flex"
+                >
                   <button
                     type="submit"
-                    className="w-full flex items-center justify-center gap-2 h-12 rounded-xl bg-white/5 border border-white/10 text-white/90 hover:bg-white/10 hover:border-white/15 transition-colors text-sm font-medium"
+                    disabled={googleLoading}
+                    className="w-full flex items-center justify-center gap-2 h-12 rounded-xl bg-white/5 border border-white/10 text-white/90 hover:bg-white/10 hover:border-white/15 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
                   >
-                    <GoogleIcon />
-                    Đăng nhập bằng Google
+                    {googleLoading ? (
+                      <>
+                        <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        Đang chuyển hướng...
+                      </>
+                    ) : (
+                      <>
+                        <GoogleIcon />
+                        Đăng nhập bằng Google
+                      </>
+                    )}
                   </button>
                 </form>
               </>
@@ -392,13 +417,37 @@ export default function AuthDialog({
                     <span className="bg-[#1a1a1e] px-3 text-xs text-white/50 uppercase tracking-wider">Hoặc</span>
                   </div>
                 </div>
-                <form action={signInWithGoogle} className="flex">
+                <form
+                  action={async () => {
+                    setGoogleLoading(true);
+                    try {
+                      await signInWithGoogle();
+                    } catch (e) {
+                      setGoogleLoading(false);
+                      setRegisterError("Không thể kết nối với Google. Vui lòng thử lại.");
+                    }
+                  }}
+                  className="flex"
+                >
                   <button
                     type="submit"
-                    className="w-full flex items-center justify-center gap-2 h-12 rounded-xl bg-white/5 border border-white/10 text-white/90 hover:bg-white/10 hover:border-white/15 transition-colors text-sm font-medium"
+                    disabled={googleLoading}
+                    className="w-full flex items-center justify-center gap-2 h-12 rounded-xl bg-white/5 border border-white/10 text-white/90 hover:bg-white/10 hover:border-white/15 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
                   >
-                    <GoogleIcon />
-                    Đăng ký bằng Google
+                    {googleLoading ? (
+                      <>
+                        <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        Đang chuyển hướng...
+                      </>
+                    ) : (
+                      <>
+                        <GoogleIcon />
+                        Đăng ký bằng Google
+                      </>
+                    )}
                   </button>
                 </form>
               </>
