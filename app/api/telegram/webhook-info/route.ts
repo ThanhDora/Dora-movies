@@ -20,8 +20,6 @@ export async function GET(req: Request) {
     const response = await fetch(url);
     const result = await response.json();
     
-    console.log("[Telegram] Webhook info:", result);
-    
     return NextResponse.json({ 
       ok: true,
       webhookInfo: result,
@@ -30,7 +28,6 @@ export async function GET(req: Request) {
         : "http://localhost:3000",
     });
   } catch (e) {
-    console.error("[Telegram] Get webhook info error:", e);
     return NextResponse.json({ 
       error: e instanceof Error ? e.message : "Unknown error" 
     }, { status: 500 });

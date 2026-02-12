@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import { useEffect, useState } from "react";
@@ -53,8 +52,6 @@ export default function Toast({ message, type, duration = 3000, onClose }: Toast
 
   const isSuccess = type === "success";
   const accentColor = isSuccess ? "#e6b800" : "#ff2a14";
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const accentColorHover = isSuccess ? "#d4a800" : "#e02512";
   const iconBg = isSuccess ? "bg-[#e6b800]/10" : "bg-[#ff2a14]/10";
   const iconColor = isSuccess ? "text-[#e6b800]" : "text-[#ff2a14]";
   const borderColor = isSuccess ? "border-[#e6b800]/30" : "border-[#ff2a14]/30";

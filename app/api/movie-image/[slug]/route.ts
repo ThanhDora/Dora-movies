@@ -1,12 +1,7 @@
 import { NextResponse } from "next/server";
+import { cdnMovieUrl } from "@/lib/utils";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL;
-
-function cdnMovieUrl(cdnBase: string, filename?: string): string {
-  if (!filename) return "";
-  if (filename.startsWith("http")) return filename;
-  return `${cdnBase}/uploads/movies/${filename}`;
-}
 
 export async function GET(
   request: Request,

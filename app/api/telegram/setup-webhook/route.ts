@@ -5,12 +5,7 @@ import { isAdmin } from "@/lib/vip";
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_API_URL = "https://api.telegram.org/bot";
 
-export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user?.id || !isAdmin(session.user.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
+async function setupWebhookHandler() {
   if (!BOT_TOKEN) {
     return NextResponse.json({ error: "TELEGRAM_BOT_TOKEN not configured" }, { status: 400 });
   }
@@ -28,9 +23,6 @@ export async function POST(req: Request) {
     }
     
     const webhookUrl = `${baseUrl}/api/telegram/webhook`;
-    
-    console.log("[Telegram] Setting webhook to:", webhookUrl);
-    
     const url = `${TELEGRAM_API_URL}${BOT_TOKEN}/setWebhook`;
     const response = await fetch(url, {
       method: "POST",
@@ -42,7 +34,6 @@ export async function POST(req: Request) {
     });
 
     const result = await response.json();
-    console.log("[Telegram] Webhook setup result:", result);
 
     if (result.ok) {
       return NextResponse.json({ 
@@ -59,9 +50,24 @@ export async function POST(req: Request) {
       }, { status: 400 });
     }
   } catch (e) {
-    console.error("[Telegram] Setup webhook error:", e);
     return NextResponse.json({ 
       error: e instanceof Error ? e.message : "Unknown error" 
     }, { status: 500 });
   }
+}
+
+export async function GET(req: Request) {
+  const session = await auth();
+  if (!session?.user?.id || !isAdmin(session.user.role)) {
+    return NextResponse.redirect("/login");
+  }
+  return setupWebhookHandler();
+}
+
+export async function POST(req: Request) {
+  const session = await auth();
+  if (!session?.user?.id || !isAdmin(session.user.role)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  return setupWebhookHandler();
 }

@@ -14,6 +14,7 @@ import type {
   RateResponse,
 } from "@/types";
 import { getApprovedMovieSlugs, getHiddenMovieSlugs } from "@/lib/db";
+import { cdnMovieUrl } from "./utils";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL;
 const FETCH_TIMEOUT = 8000;
@@ -172,12 +173,6 @@ function hash32(str: string): number {
     h = Math.imul(h, 16777619);
   }
   return h >>> 0;
-}
-
-function cdnMovieUrl(cdnBase: string, filename?: string): string {
-  if (!filename) return "";
-  if (filename.startsWith("http")) return filename;
-  return `${cdnBase}/uploads/movies/${filename}`;
 }
 
 function mapCategoryRef(ref: OphimRawItem): Category {

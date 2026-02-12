@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 export default function TelegramTestButton() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const router = useRouter();
 
   async function testBot() {
     setLoading(true);
@@ -50,6 +48,27 @@ export default function TelegramTestButton() {
     }
   }
 
+  async function setupWebhook() {
+    setLoading(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/telegram/setup-webhook", {
+        method: "GET",
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setMessage(`✅ Webhook đã được setup thành công!\nURL: ${data.webhookUrl}\n\nBây giờ bot sẽ tự động trả lời khi bạn gửi /start!`);
+      } else {
+        setMessage(`❌ Lỗi: ${data.error || "Không thể setup webhook"}`);
+      }
+    } catch (e) {
+      setMessage(`❌ Lỗi: ${e instanceof Error ? e.message : "Unknown error"}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="mb-4">
       <div className="flex gap-2 flex-wrap">
@@ -66,6 +85,13 @@ export default function TelegramTestButton() {
           className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? "Đang check..." : "Check Tin Nhắn (/start)"}
+        </button>
+        <button
+          onClick={setupWebhook}
+          disabled={loading}
+          className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? "Đang setup..." : "Setup Webhook (Tự động)"}
         </button>
       </div>
       {message && (

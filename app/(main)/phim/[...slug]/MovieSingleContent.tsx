@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import Link from "next/link";
@@ -6,9 +5,6 @@ import Image from "next/image";
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import type { Movie, Episode } from "@/types";
-// import LazyWhenInView from "@/components/LazyWhenInView";
-// import LazyMovieGrid from "@/components/LazyMovieGrid";
-// import StarRating from "@/components/StarRating";
 import TrailerModal from "@/components/TrailerModal";
 import AddToPlaylistModal from "@/components/AddToPlaylistModal";
 
@@ -58,7 +54,6 @@ export default function MovieSingleContent({
   const [activeTab, setActiveTab] = useState<TabId>("episodes");
   const [favorite, setFavorite] = useState(false);
   const thumb = currentMovie.thumb_url || currentMovie.poster_url || LOADING_GIF;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const episodes = currentMovie.episodes || [];
   const byServer = useMemo(() => {
     const m = new Map<string, Episode[]>();
@@ -71,7 +66,6 @@ export default function MovieSingleContent({
     return m;
   }, [episodes]);
   const serverNames = Array.from(byServer.keys()).sort();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const firstServerList = serverNames.length > 0 ? byServer.get(serverNames[0]) || [] : [];
   const byName = useMemo(() => groupByName(firstServerList), [firstServerList]);
   const episodeNames = Array.from(byName.keys()).sort((a, b) => {
@@ -85,12 +79,6 @@ export default function MovieSingleContent({
   const [episodesExpanded, setEpisodesExpanded] = useState(false);
   const episodeNamesToShow = episodesExpanded ? episodeNames : episodeNames.slice(0, EPISODES_VISIBLE);
   const hasMoreEpisodes = episodeNames.length > EPISODES_VISIBLE;
-  const RELATED_PER_PAGE = 20;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [relatedPage, setRelatedPage] = useState(1);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const totalRelatedPages = Math.max(1, Math.ceil(movie_related.length / RELATED_PER_PAGE));
-  const relatedSlice = movie_related.slice((relatedPage - 1) * RELATED_PER_PAGE, relatedPage * RELATED_PER_PAGE);
 
   // Fix "Đã chiếu" không crash khi no episodes
   const lastEpisodeName = episodeNames.length > 0 ? episodeNames[episodeNames.length - 1] : null;
