@@ -249,14 +249,26 @@ export async function upsertUserFromAuth(params: {
   }
 }
 
+let approvedSlugsCache: { data: Set<string>; expires: number } | null = null;
+const APPROVED_SLUGS_CACHE_TTL = 300000;
+
 export async function getApprovedMovieSlugs(): Promise<Set<string>> {
+  if (approvedSlugsCache && approvedSlugsCache.expires > Date.now()) {
+    return approvedSlugsCache.data;
+  }
   const prisma = getPrisma();
   if (!prisma) return new Set();
   const rows = await prisma.movieApproval.findMany({
     where: { status: "approved" },
     select: { slug: true },
   });
-  return new Set(rows.map((r: { slug: string }) => r.slug));
+  const slugs = new Set(rows.map((r: { slug: string }) => r.slug));
+  approvedSlugsCache = { data: slugs, expires: Date.now() + APPROVED_SLUGS_CACHE_TTL };
+  return slugs;
+}
+
+export function clearApprovedSlugsCache(): void {
+  approvedSlugsCache = null;
 }
 
 export async function getVipPlans(): Promise<DbVipPlan[]> {
@@ -359,6 +371,7 @@ export async function insertMovieApprovals(slugs: string[], source = "doramovies
   if (toInsert.length === 0) return 0;
   await prisma.movieApproval.createMany({
     data: toInsert.map((slug) => ({ slug, source, status: "pending" })),
+    skipDuplicates: true,
   });
   return toInsert.length;
 }
@@ -389,6 +402,7 @@ export async function updateMovieApprovalStatus(
       approvedAt: status === "approved" ? new Date() : null,
     },
   });
+  clearApprovedSlugsCache();
 }
 
 export async function listUsers(params?: { role?: UserRole }): Promise<DbUser[]> {

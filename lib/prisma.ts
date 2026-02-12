@@ -23,6 +23,7 @@ export function getPrisma(): PrismaClient | null {
   g.__prisma = new PrismaClient({
     datasourceUrl: url,
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+    errorFormat: "minimal",
   });
   return g.__prisma;
 }

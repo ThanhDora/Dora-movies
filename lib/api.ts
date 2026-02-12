@@ -17,6 +17,11 @@ import { getApprovedMovieSlugs } from "@/lib/db";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL;
 const FETCH_TIMEOUT = 8000;
+const MAX_RETRIES = 2;
+const RETRY_DELAY = 1000;
+
+const cache = new Map<string, { data: unknown; expires: number }>();
+const CACHE_TTL = 60000;
 
 async function safeApprovedSlugs(): Promise<Set<string>> {
   try {
@@ -26,18 +31,55 @@ async function safeApprovedSlugs(): Promise<Set<string>> {
   }
 }
 
-async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
+async function fetchApi<T>(path: string, options?: RequestInit, useCache = false): Promise<T> {
   const url = path.startsWith("http") ? path : `${BASE}${path}`;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
-  const res = await fetch(url, {
-    ...options,
-    signal: controller.signal,
-    headers: { "Content-Type": "application/json", ...options?.headers },
-  });
-  clearTimeout(timeout);
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
-  return res.json() as Promise<T>;
+  const cacheKey = `${url}:${JSON.stringify(options?.body || {})}`;
+  
+  if (useCache) {
+    const cached = cache.get(cacheKey);
+    if (cached && cached.expires > Date.now()) {
+      return cached.data as T;
+    }
+  }
+  
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+      const res = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+        headers: { "Content-Type": "application/json", ...options?.headers },
+        next: { revalidate: 60 },
+      });
+      clearTimeout(timeout);
+      
+      if (!res.ok) {
+        if (res.status >= 500 && attempt < MAX_RETRIES) {
+          await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY * (attempt + 1)));
+          continue;
+        }
+        throw new Error(`API error: ${res.status}`);
+      }
+      
+      const data = await res.json() as T;
+      
+      if (useCache) {
+        cache.set(cacheKey, { data, expires: Date.now() + CACHE_TTL });
+      }
+      
+      return data;
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+      if (attempt < MAX_RETRIES && (lastError.name === "AbortError" || (lastError.message.includes("500") || lastError.message.includes("503")))) {
+        await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY * (attempt + 1)));
+        continue;
+      }
+      throw lastError;
+    }
+  }
+  throw lastError || new Error("Fetch failed");
 }
 
 function emptyHomeData(): HomeData {
@@ -302,16 +344,16 @@ export async function getHome(): Promise<HomeData> {
   if (!BASE) return emptyHomeData();
   try {
     const [cats, regs, latest, single, series, approvedSet, animeRes] = await Promise.all([
-      fetchApi<OphimV1SimpleList>("/v1/api/the-loai"),
-      fetchApi<OphimV1SimpleList>("/v1/api/quoc-gia"),
-      fetchApi<OphimV1List>("/v1/api/danh-sach/phim-moi-cap-nhat?page=1"),
-      fetchApi<OphimV1List>("/v1/api/danh-sach/phim-le?page=1"),
-      fetchApi<OphimV1List>("/v1/api/danh-sach/phim-bo?page=1"),
+      fetchApi<OphimV1SimpleList>("/v1/api/the-loai", undefined, true),
+      fetchApi<OphimV1SimpleList>("/v1/api/quoc-gia", undefined, true),
+      fetchApi<OphimV1List>("/v1/api/danh-sach/phim-moi-cap-nhat?page=1", undefined, true),
+      fetchApi<OphimV1List>("/v1/api/danh-sach/phim-le?page=1", undefined, true),
+      fetchApi<OphimV1List>("/v1/api/danh-sach/phim-bo?page=1", undefined, true),
       safeApprovedSlugs(),
       (async () => {
         const results = await Promise.allSettled([
-          fetchApi<OphimV1List>("/v1/api/the-loai/hanh-dong?page=1"),
-          fetchApi<OphimV1List>("/v1/api/the-loai/action?page=1"),
+          fetchApi<OphimV1List>("/v1/api/the-loai/hanh-dong?page=1", undefined, true),
+          fetchApi<OphimV1List>("/v1/api/the-loai/action?page=1", undefined, true),
         ]);
         const slugs: [string, string][] = [["hanh-dong", "/the-loai/hanh-dong"], ["action", "/the-loai/action"]];
         for (let i = 0; i < results.length; i++) {

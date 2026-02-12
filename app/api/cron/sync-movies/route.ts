@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { insertMovieApprovals } from "@/lib/db";
+import { insertMovieApprovals, clearApprovedSlugsCache } from "@/lib/db";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL;
 const CRON_SECRET = process.env.CRON_SECRET;
@@ -26,6 +26,7 @@ export async function POST(req: Request) {
     ]);
     const allSlugs = [...new Set([...latest, ...single, ...series])];
     const inserted = await insertMovieApprovals(allSlugs, "doramovies");
+    clearApprovedSlugsCache();
     return NextResponse.json({ ok: true, inserted, total: allSlugs.length });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Sync failed";

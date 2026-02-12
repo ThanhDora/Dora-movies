@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import type { Movie, Region } from "@/types";
@@ -10,7 +11,7 @@ function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, "").trim();
 }
 
-function PlayIcon() {
+const PlayIcon = memo(function PlayIcon() {
   return (
     <span className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded">
       <svg className="w-14 h-14 text-white" fill="currentColor" viewBox="0 0 24 24">
@@ -18,9 +19,9 @@ function PlayIcon() {
       </svg>
     </span>
   );
-}
+});
 
-export default function MovieCard({ movie }: { movie: Movie }) {
+function MovieCard({ movie }: { movie: Movie }) {
   const thumb = movie.thumb_url || movie.poster_url || "";
   const url = movie.url || `/phim/${movie.slug}`;
   const regions = movie.regions || [];
@@ -73,3 +74,5 @@ export default function MovieCard({ movie }: { movie: Movie }) {
     </div>
   );
 }
+
+export default memo(MovieCard);
