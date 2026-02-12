@@ -36,9 +36,6 @@ export async function POST(req: Request) {
     await deletePasswordResetToken(token);
     return NextResponse.json({ ok: true });
   } catch (e) {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[reset-password]", e);
-    }
     return NextResponse.json({ error: "Có lỗi xảy ra. Vui lòng thử lại." }, { status: 500 });
   }
 }

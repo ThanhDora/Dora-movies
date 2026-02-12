@@ -148,9 +148,6 @@ export async function createPasswordResetToken(email: string, token: string, exp
     const client = prisma as unknown as PasswordResetTokenCreateClient;
     await client.passwordResetToken.create({ data: { email: email.toLowerCase(), token, expires } });
   } catch (e) {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[db] createPasswordResetToken error:", e);
-    }
     throw e;
   }
 }
@@ -189,9 +186,6 @@ export async function setEmailVerified(email: string): Promise<void> {
     where: { email: normalized },
     data: { emailVerifiedAt: new Date() },
   });
-  if (process.env.NODE_ENV === "development" && result.count === 0) {
-    console.warn("[db] setEmailVerified: no user updated for email:", normalized);
-  }
 }
 
 export async function upsertUserFromAuth(params: {
@@ -274,7 +268,7 @@ export async function upsertUserFromAuth(params: {
 }
 
 let approvedSlugsCache: { data: Set<string>; expires: number } | null = null;
-const APPROVED_SLUGS_CACHE_TTL = 300000;
+const APPROVED_SLUGS_CACHE_TTL = 60000;
 
 export async function getApprovedMovieSlugs(): Promise<Set<string>> {
   if (approvedSlugsCache && approvedSlugsCache.expires > Date.now()) {
@@ -308,6 +302,41 @@ export async function getApprovedMovieSlugs(): Promise<Set<string>> {
 
 export function clearApprovedSlugsCache(): void {
   approvedSlugsCache = null;
+}
+
+let hiddenSlugsCache: { data: Set<string>; expires: number } | null = null;
+const HIDDEN_SLUGS_CACHE_TTL = 60000;
+
+export async function getHiddenMovieSlugs(): Promise<Set<string>> {
+  if (hiddenSlugsCache && hiddenSlugsCache.expires > Date.now()) {
+    return hiddenSlugsCache.data;
+  }
+  const prisma = getPrisma();
+  if (!prisma) return new Set();
+  const now = new Date();
+  const rows = await (prisma.movieApproval.findMany as unknown as (args: {
+    where: {
+      isVisible: boolean;
+      OR: Array<{ scheduledAt: null } | { scheduledAt: { lte: Date } }>;
+    };
+    select: { slug: boolean };
+  }) => Promise<Array<{ slug: string }>>)({
+    where: {
+      isVisible: false,
+      OR: [
+        { scheduledAt: null },
+        { scheduledAt: { lte: now } },
+      ],
+    },
+    select: { slug: true },
+  });
+  const slugs = new Set<string>(rows.map((r) => r.slug));
+  hiddenSlugsCache = { data: slugs, expires: Date.now() + HIDDEN_SLUGS_CACHE_TTL };
+  return slugs;
+}
+
+export function clearHiddenSlugsCache(): void {
+  hiddenSlugsCache = null;
 }
 
 export async function getVipPlans(): Promise<DbVipPlan[]> {
@@ -423,7 +452,7 @@ export async function upsertMovieVisibility(slug: string, isVisible: boolean, sc
       upsert: (args: {
         where: { slug: string };
         create: { slug: string; source: string; status: string; isVisible: boolean; scheduledAt?: Date | null };
-        update: { isVisible: boolean; scheduledAt?: Date | null };
+        update: { status: string; isVisible: boolean; scheduledAt?: Date | null };
       }) => Promise<unknown>;
     };
   };
@@ -437,11 +466,13 @@ export async function upsertMovieVisibility(slug: string, isVisible: boolean, sc
       scheduledAt: scheduledAt ?? null,
     },
     update: {
+      status: "approved",
       isVisible,
       scheduledAt: scheduledAt ?? null,
     },
   });
   clearApprovedSlugsCache();
+  clearHiddenSlugsCache();
 }
 
 export async function getPendingMovieApprovals(): Promise<DbMovieApproval[]> {
@@ -476,17 +507,63 @@ interface MovieApprovalFindManyClient {
   };
 }
 
-export async function getAllMovies(params?: { page?: number; limit?: number }): Promise<{ movies: DbMovieApproval[]; total: number; page: number; limit: number; totalPages: number }> {
+export async function getAllMovies(params?: { page?: number; limit?: number; isVisible?: boolean; search?: string }): Promise<{ movies: DbMovieApproval[]; total: number; page: number; limit: number; totalPages: number }> {
   const prisma = getPrisma();
   if (!prisma) return { movies: [], total: 0, page: 1, limit: 20, totalPages: 0 };
   
   const page = params?.page || 1;
   const limit = params?.limit || 20;
   const skip = (page - 1) * limit;
+  
+  let searchSlugs: string[] | null = null;
+  if (params?.search && params.search.trim()) {
+    try {
+      const BASE = process.env.NEXT_PUBLIC_API_URL;
+      if (BASE) {
+        const allSearchSlugs: string[] = [];
+        for (let p = 1; p <= 5; p++) {
+          try {
+            const searchParams = new URLSearchParams({ keyword: params.search.trim(), page: String(p) });
+            const res = await fetch(`${BASE}/v1/api/tim-kiem?${searchParams}`, {
+              headers: { "Content-Type": "application/json" },
+              signal: AbortSignal.timeout(10000),
+            });
+            if (res.ok) {
+              const data = await res.json();
+              const items = data?.data?.items || [];
+              if (items.length === 0) break;
+              const slugs = items.map((item: { slug?: string }) => String(item.slug || "")).filter(Boolean);
+              allSearchSlugs.push(...slugs);
+              const pagination = data?.data?.params?.pagination;
+              if (!pagination || p * pagination.totalItemsPerPage >= (pagination.totalItems || 0)) break;
+            } else {
+              break;
+            }
+          } catch {
+            break;
+          }
+        }
+        if (allSearchSlugs.length > 0) {
+          searchSlugs = allSearchSlugs;
+        }
+      }
+    } catch (err) {
+    }
+  }
+  
+  const whereClause: { isVisible?: boolean; slug?: { in?: string[] } | { contains?: string; mode?: "insensitive" | "default" } } = {};
+  if (params?.isVisible !== undefined) {
+    whereClause.isVisible = params.isVisible;
+  }
+  if (searchSlugs && searchSlugs.length > 0) {
+    whereClause.slug = { in: searchSlugs };
+  } else if (params?.search && params.search.trim() && !searchSlugs) {
+    whereClause.slug = { contains: params.search.trim(), mode: "insensitive" };
+  }
 
   try {
     const rawList = await (prisma.movieApproval.findMany as unknown as (args: {
-      where?: Record<string, unknown>;
+      where?: { isVisible?: boolean; slug?: { in?: string[] } | { contains?: string; mode?: string } };
       orderBy?: Array<{ createdAt?: string } | { approvedAt?: string }>;
       skip?: number;
       take?: number;
@@ -501,12 +578,15 @@ export async function getAllMovies(params?: { page?: number; limit?: number }): 
       scheduledAt?: Date | null;
       createdAt: Date;
     }>>)({
+      where: Object.keys(whereClause).length > 0 ? whereClause : undefined,
       orderBy: [{ createdAt: "desc" }],
       skip: skip,
       take: limit,
     });
 
-    const total = await (prisma.movieApproval.count as unknown as () => Promise<number>)();
+    const total = await (prisma.movieApproval.count as unknown as (args: { where?: { isVisible?: boolean; slug?: { in?: string[] } | { contains?: string; mode?: string } } }) => Promise<number>)({
+      where: Object.keys(whereClause).length > 0 ? whereClause : undefined,
+    });
 
     const movies: DbMovieApproval[] = rawList.map((m) => ({
       id: m.id,
@@ -524,9 +604,6 @@ export async function getAllMovies(params?: { page?: number; limit?: number }): 
 
     return { movies, total, page, limit, totalPages };
   } catch (e) {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[getAllMovies] Error:", e);
-    }
     throw e;
   }
 }
@@ -582,9 +659,6 @@ export async function getApprovedMovies(params?: { page?: number; limit?: number
 
     return { movies, total, page, limit, totalPages };
   } catch (e) {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[getApprovedMovies] Error:", e);
-    }
     throw e;
   }
 }
@@ -611,18 +685,17 @@ export async function updateMovieVisibility(id: string, isVisible: boolean): Pro
     if (!existing) {
       throw new Error(`Movie with id ${id} not found`);
     }
+    const newStatus = existing.status === "pending" || existing.status === "rejected" ? "approved" : existing.status;
     await client.movieApproval.update({
       where: { id },
       data: {
         isVisible,
-        status: existing.status === "pending" ? "approved" : existing.status,
+        status: newStatus,
       },
     });
     clearApprovedSlugsCache();
+    clearHiddenSlugsCache();
   } catch (e) {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[updateMovieVisibility] Error:", e, { id, isVisible });
-    }
     throw e;
   }
 }
@@ -645,6 +718,7 @@ export async function updateMovieSchedule(id: string, scheduledAt: Date | null):
     data: { scheduledAt },
   });
   clearApprovedSlugsCache();
+  clearHiddenSlugsCache();
 }
 
 interface MovieApprovalStatusClient {
@@ -681,10 +755,8 @@ export async function updateMovieApprovalStatus(
       },
     });
     clearApprovedSlugsCache();
+    clearHiddenSlugsCache();
   } catch (e) {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[updateMovieApprovalStatus] Error:", e, { id, status, approvedBy });
-    }
     throw e;
   }
 }

@@ -37,9 +37,6 @@ export async function POST(req: Request) {
         await updateMovieApprovalStatus(movie.id, "approved", session.user.id);
         approved++;
       } catch (e) {
-        if (process.env.NODE_ENV === "development") {
-          console.error(`[sync-and-approve] Error approving ${movie.slug}:`, e);
-        }
       }
     }
     

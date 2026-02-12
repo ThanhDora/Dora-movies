@@ -13,7 +13,7 @@ import type {
   SearchResultItem,
   RateResponse,
 } from "@/types";
-import { getApprovedMovieSlugs } from "@/lib/db";
+import { getApprovedMovieSlugs, getHiddenMovieSlugs } from "@/lib/db";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL;
 const FETCH_TIMEOUT = 8000;
@@ -26,6 +26,14 @@ const CACHE_TTL = 60000;
 async function safeApprovedSlugs(): Promise<Set<string>> {
   try {
     return await getApprovedMovieSlugs();
+  } catch {
+    return new Set();
+  }
+}
+
+async function safeHiddenSlugs(): Promise<Set<string>> {
+  try {
+    return await getHiddenMovieSlugs();
   } catch {
     return new Set();
   }
@@ -335,21 +343,26 @@ function mapSort(sorts?: string): { sort_field?: string; sort_type?: string } {
   return { sort_field: "modified.time", sort_type: "desc" };
 }
 
-function filterByApproved<T extends { slug: string }>(items: T[], approved: Set<string>): T[] {
-  if (approved.size === 0) return items;
-  return items.filter((m) => approved.has(m.slug));
+function filterByApproved<T extends { slug?: unknown }>(items: T[], approved: Set<string>, hidden: Set<string>): T[] {
+  return items.filter((item) => {
+    const slug = item.slug;
+    if (typeof slug !== "string" || !slug) return false;
+    if (hidden.has(slug)) return false;
+    return true;
+  });
 }
 
 export async function getHome(): Promise<HomeData> {
   if (!BASE) return emptyHomeData();
   try {
-    const [cats, regs, latest, single, series, approvedSet, animeRes] = await Promise.all([
+    const [cats, regs, latest, single, series, approvedSet, hiddenSet, animeRes] = await Promise.all([
       fetchApi<OphimV1SimpleList>("/v1/api/the-loai", undefined, true),
       fetchApi<OphimV1SimpleList>("/v1/api/quoc-gia", undefined, true),
       fetchApi<OphimV1List>("/v1/api/danh-sach/phim-moi-cap-nhat?page=1", undefined, true),
       fetchApi<OphimV1List>("/v1/api/danh-sach/phim-le?page=1", undefined, true),
       fetchApi<OphimV1List>("/v1/api/danh-sach/phim-bo?page=1", undefined, true),
       safeApprovedSlugs(),
+      safeHiddenSlugs(),
       (async () => {
         const results = await Promise.allSettled([
           fetchApi<OphimV1List>("/v1/api/the-loai/hanh-dong?page=1", undefined, true),
@@ -394,16 +407,16 @@ export async function getHome(): Promise<HomeData> {
   let latestMovies = latest.data.items.map((it) => mapItemToMovie(it as OphimRawItem, cdnLatest));
   let singleMovies = single.data.items.map((it) => mapItemToMovie(it as OphimRawItem, cdnSingle));
   let seriesMovies = series.data.items.map((it) => mapItemToMovie(it as OphimRawItem, cdnSeries));
-  latestMovies = filterByApproved(latestMovies, approvedSet);
-  singleMovies = filterByApproved(singleMovies, approvedSet);
-  seriesMovies = filterByApproved(seriesMovies, approvedSet);
+  latestMovies = filterByApproved(latestMovies, approvedSet, hiddenSet);
+  singleMovies = filterByApproved(singleMovies, approvedSet, hiddenSet);
+  seriesMovies = filterByApproved(seriesMovies, approvedSet, hiddenSet);
 
   let animeMovies: Movie[] = [];
   let animeLink = "/the-loai/hanh-dong";
   if (animeRes && animeRes.res?.data?.items?.length) {
     const cdnAnime = animeRes.res.data.APP_DOMAIN_CDN_IMAGE;
     animeMovies = animeRes.res.data.items.map((it) => mapItemToMovie(it as OphimRawItem, cdnAnime));
-    animeMovies = filterByApproved(animeMovies, approvedSet);
+    animeMovies = filterByApproved(animeMovies, approvedSet, hiddenSet);
     animeLink = animeRes.link;
   }
   if (animeMovies.length === 0 && latestMovies.length > 0) {
@@ -452,13 +465,14 @@ export async function getHome(): Promise<HomeData> {
 export async function search(q: string): Promise<SearchResultItem[]> {
   if (!q.trim() || !BASE) return [];
   const params = new URLSearchParams({ keyword: q.trim(), page: "1" });
-  const [res, approvedSet] = await Promise.all([
+  const [res, approvedSet, hiddenSet] = await Promise.all([
     fetchApi<OphimV1List>(`/v1/api/tim-kiem?${params}`),
     safeApprovedSlugs(),
+    safeHiddenSlugs(),
   ]);
   const cdn = res.data.APP_DOMAIN_CDN_IMAGE;
   let items = (res.data.items || []) as OphimRawItem[];
-  if (approvedSet.size > 0) items = items.filter((it) => approvedSet.has(String(it.slug || "")));
+  items = filterByApproved(items.filter((it): it is OphimRawItem & { slug: string } => typeof it.slug === "string"), approvedSet, hiddenSet);
   return items.slice(0, 5).map((row) => ({
     title: String(row.name || ""),
     original_title: String(row.origin_name || ""),
@@ -497,17 +511,41 @@ export async function getCatalog(
     ? `/v1/api/tim-kiem?keyword=${encodeURIComponent(params.search)}&${q.toString()}`
     : `/v1/api/danh-sach/phim-moi-cap-nhat?${q.toString()}`;
 
-  const [res, approvedSet] = await Promise.all([
+  const [res, approvedSet, hiddenSet] = await Promise.all([
     fetchApi<OphimV1List>(endpoint),
     safeApprovedSlugs(),
+    safeHiddenSlugs(),
   ]);
   const p = res.data.params.pagination;
-  const perPage = p.totalItemsPerPage;
+  const perPage = 25;
   const totalItems = p.totalItems ?? res.data.items.length;
   let items = res.data.items as OphimRawItem[];
-  if (approvedSet.size > 0) {
-    items = items.filter((it) => approvedSet.has(String(it.slug || "")));
+  items = filterByApproved(items, approvedSet, hiddenSet);
+  
+  if (items.length < perPage && page * p.totalItemsPerPage < totalItems) {
+    const nextPage = page + 1;
+    const nextQ = new URLSearchParams({ page: String(nextPage) });
+    if (params.categorys) nextQ.set("category", params.categorys);
+    if (params.regions) nextQ.set("country", params.regions);
+    if (params.years) nextQ.set("year", params.years);
+    if (params.types) nextQ.set("type", params.types);
+    const sort = mapSort(params.sorts);
+    if (sort.sort_field) nextQ.set("sort_field", sort.sort_field);
+    if (sort.sort_type) nextQ.set("sort_type", sort.sort_type);
+    const nextEndpoint = params.search
+      ? `/v1/api/tim-kiem?keyword=${encodeURIComponent(params.search)}&${nextQ.toString()}`
+      : `/v1/api/danh-sach/phim-moi-cap-nhat?${nextQ.toString()}`;
+    try {
+      const nextRes = await fetchApi<OphimV1List>(nextEndpoint);
+      const nextItems = filterByApproved(nextRes.data.items as OphimRawItem[], approvedSet, hiddenSet);
+      items = [...items, ...nextItems].slice(0, perPage);
+    } catch {
+      //
+    }
+  } else {
+    items = items.slice(0, perPage);
   }
+  
   const query: Record<string, string> = {};
   if (params.search) query.search = params.search;
   if (params.categorys) query.categorys = params.categorys;
@@ -565,16 +603,31 @@ export async function getCategoryBySlug(
   slug: string,
   page = 1
 ): Promise<{ category: Category; data: PaginatedResponse<Movie> }> {
-  const [res, approvedSet] = await Promise.all([
+  const [res, approvedSet, hiddenSet] = await Promise.all([
     fetchApi<OphimV1List>(`/v1/api/the-loai/${encodeURIComponent(slug)}?page=${page}`),
     safeApprovedSlugs(),
+    safeHiddenSlugs(),
   ]);
   const p = res.data.params.pagination;
+  const perPage = 25;
   const totalItems = p.totalItems ?? res.data.items.length;
   let items = res.data.items as OphimRawItem[];
-  if (approvedSet.size > 0) items = items.filter((it) => approvedSet.has(String(it.slug || "")));
+  items = filterByApproved(items, approvedSet, hiddenSet);
+  
+  if (items.length < perPage && page * p.totalItemsPerPage < totalItems) {
+    try {
+      const nextRes = await fetchApi<OphimV1List>(`/v1/api/the-loai/${encodeURIComponent(slug)}?page=${page + 1}`);
+      const nextItems = filterByApproved(nextRes.data.items as OphimRawItem[], approvedSet, hiddenSet);
+      items = [...items, ...nextItems].slice(0, perPage);
+    } catch {
+      items = items.slice(0, perPage);
+    }
+  } else {
+    items = items.slice(0, perPage);
+  }
+  
   const query: Record<string, string> = {};
-  const data = toPaginatedResponse(items as unknown[], res.data.APP_DOMAIN_CDN_IMAGE, page, totalItems, p.totalItemsPerPage, `/the-loai/${slug}`, query);
+  const data = toPaginatedResponse(items as unknown[], res.data.APP_DOMAIN_CDN_IMAGE, page, totalItems, perPage, `/the-loai/${slug}`, query);
   return {
     category: { id: slug, name: res.data.titlePage || slug, slug, url: `/the-loai/${slug}` },
     data,
@@ -585,16 +638,31 @@ export async function getRegionBySlug(
   slug: string,
   page = 1
 ): Promise<{ region: Region; data: PaginatedResponse<Movie> }> {
-  const [res, approvedSet] = await Promise.all([
+  const [res, approvedSet, hiddenSet] = await Promise.all([
     fetchApi<OphimV1List>(`/v1/api/quoc-gia/${encodeURIComponent(slug)}?page=${page}`),
     safeApprovedSlugs(),
+    safeHiddenSlugs(),
   ]);
   const p = res.data.params.pagination;
+  const perPage = 25;
   const totalItems = p.totalItems ?? res.data.items.length;
   let items = res.data.items as OphimRawItem[];
-  if (approvedSet.size > 0) items = items.filter((it) => approvedSet.has(String(it.slug || "")));
+  items = filterByApproved(items, approvedSet, hiddenSet);
+  
+  if (items.length < perPage && page * p.totalItemsPerPage < totalItems) {
+    try {
+      const nextRes = await fetchApi<OphimV1List>(`/v1/api/quoc-gia/${encodeURIComponent(slug)}?page=${page + 1}`);
+      const nextItems = filterByApproved(nextRes.data.items as OphimRawItem[], approvedSet, hiddenSet);
+      items = [...items, ...nextItems].slice(0, perPage);
+    } catch {
+      items = items.slice(0, perPage);
+    }
+  } else {
+    items = items.slice(0, perPage);
+  }
+  
   const query: Record<string, string> = {};
-  const data = toPaginatedResponse(items as unknown[], res.data.APP_DOMAIN_CDN_IMAGE, page, totalItems, p.totalItemsPerPage, `/quoc-gia/${slug}`, query);
+  const data = toPaginatedResponse(items as unknown[], res.data.APP_DOMAIN_CDN_IMAGE, page, totalItems, perPage, `/quoc-gia/${slug}`, query);
   return {
     region: { id: slug, name: res.data.titlePage || slug, slug, url: `/quoc-gia/${slug}` },
     data,
@@ -614,16 +682,31 @@ export async function getCatalogBySlug(
   slug: string,
   page = 1
 ): Promise<{ catalog: Catalog; data: PaginatedResponse<Movie> }> {
-  const [res, approvedSet] = await Promise.all([
+  const [res, approvedSet, hiddenSet] = await Promise.all([
     fetchApi<OphimV1List>(`/v1/api/danh-sach/${encodeURIComponent(slug)}?page=${page}`),
     safeApprovedSlugs(),
+    safeHiddenSlugs(),
   ]);
   const p = res.data.params.pagination;
+  const perPage = 25;
   const totalItems = p.totalItems ?? res.data.items.length;
   let items = res.data.items as OphimRawItem[];
-  if (approvedSet.size > 0) items = items.filter((it) => approvedSet.has(String(it.slug || "")));
+  items = filterByApproved(items, approvedSet, hiddenSet);
+  
+  if (items.length < perPage && page * p.totalItemsPerPage < totalItems) {
+    try {
+      const nextRes = await fetchApi<OphimV1List>(`/v1/api/danh-sach/${encodeURIComponent(slug)}?page=${page + 1}`);
+      const nextItems = filterByApproved(nextRes.data.items as OphimRawItem[], approvedSet, hiddenSet);
+      items = [...items, ...nextItems].slice(0, perPage);
+    } catch {
+      items = items.slice(0, perPage);
+    }
+  } else {
+    items = items.slice(0, perPage);
+  }
+  
   const query: Record<string, string> = {};
-  const data = toPaginatedResponse(items as unknown[], res.data.APP_DOMAIN_CDN_IMAGE, page, totalItems, p.totalItemsPerPage, `/danh-sach/${slug}`, query);
+  const data = toPaginatedResponse(items as unknown[], res.data.APP_DOMAIN_CDN_IMAGE, page, totalItems, perPage, `/danh-sach/${slug}`, query);
   return {
     catalog: { id: slug, name: res.data.titlePage || slug, slug },
     data,
@@ -653,11 +736,12 @@ export async function getMovie(slug: string): Promise<{
   movie_related: Movie[];
   movie_related_top: Movie[];
 }> {
-  const [res, approvedSet] = await Promise.all([
+  const [res, approvedSet, hiddenSet] = await Promise.all([
     fetchApi<OphimV1Movie>(`/v1/api/phim/${encodeURIComponent(slug)}`),
     safeApprovedSlugs(),
+    safeHiddenSlugs(),
   ]);
-  if (approvedSet.size > 0 && !approvedSet.has(slug)) {
+  if (hiddenSet.has(slug)) {
     throw new Error("NOT_FOUND");
   }
   const cdn = res.data.APP_DOMAIN_CDN_IMAGE;
@@ -679,7 +763,7 @@ export async function getMovie(slug: string): Promise<{
       }
     }
     related = combined.map((it) => mapItemToMovie(it as OphimRawItem, cdnBase));
-    related = filterByApproved(related, approvedSet);
+    related = filterByApproved(related, approvedSet, hiddenSet);
     related = related.filter((m) => m.slug !== currentMovie.slug).slice(0, 60);
   }
   return { currentMovie, movie_related: related, movie_related_top: related.slice(0, 10) };

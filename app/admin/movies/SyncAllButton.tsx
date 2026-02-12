@@ -17,13 +17,17 @@ export default function SyncAllButton() {
       });
       const data = await res.json();
       if (res.ok) {
+        let message = `Đồng bộ thành công ${data.synced}/${data.total} phim`;
+        if (data.errors > 0) {
+          message += ` (${data.errors} lỗi)`;
+        }
         setToast({
-          message: `Đồng bộ thành công ${data.synced}/${data.total} phim`,
+          message,
           type: "success",
         });
         setTimeout(() => {
           window.location.reload();
-        }, 1500);
+        }, 2000);
       } else {
         setToast({
           message: data.error || "Đồng bộ thất bại",

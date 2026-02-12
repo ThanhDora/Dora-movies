@@ -456,9 +456,6 @@ export default function AuthDialog({
                       }
                       setLoginError(errorMsg);
                       setToast({ message: errorMsg, type: "error" });
-                      if (process.env.NODE_ENV === "development") {
-                        console.error("[AuthDialog] Google login error:", e);
-                      }
                     }
                   }}
                   className="flex"
@@ -630,9 +627,6 @@ export default function AuthDialog({
                       }
                       setRegisterError(errorMsg);
                       setToast({ message: errorMsg, type: "error" });
-                      if (process.env.NODE_ENV === "development") {
-                        console.error("[AuthDialog] Google register error:", e);
-                      }
                     }
                   }}
                   className="flex"

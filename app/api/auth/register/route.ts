@@ -3,6 +3,7 @@ import { hash } from "bcryptjs";
 import { randomBytes } from "crypto";
 import { registerUser, createVerificationToken } from "@/lib/db";
 import { sendVerificationEmail } from "@/lib/email";
+import { sendNewUserNotification } from "@/lib/telegram";
 
 function toUserMessage(e: unknown): string {
   const msg = e instanceof Error ? e.message : "";
@@ -25,11 +26,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Mật khẩu tối thiểu 6 ký tự." }, { status: 400 });
     }
     const passwordHash = await hash(password, 10);
-    await registerUser({ email: trimmed, passwordHash, name: name?.trim() || null });
+    const user = await registerUser({ email: trimmed, passwordHash, name: name?.trim() || null });
     const token = randomBytes(32).toString("hex");
     const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
     await createVerificationToken(trimmed, token, expires);
     const emailSent = await sendVerificationEmail(trimmed, token);
+    sendNewUserNotification({ email: trimmed, name: name?.trim() || null, role: user.role }).catch(() => {});
     return NextResponse.json({ ok: true, emailSent });
   } catch (e) {
     return NextResponse.json({ error: toUserMessage(e) }, { status: 400 });

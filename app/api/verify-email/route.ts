@@ -19,9 +19,6 @@ function getLoginRedirect(req: Request, query: string): string {
 export async function GET(req: Request) {
   try {
     if (!getPrisma()) {
-      if (process.env.NODE_ENV === "development") {
-        console.error("[verify-email] DATABASE_URL not set");
-      }
       return NextResponse.redirect(getLoginRedirect(req, "error=verify_failed"));
     }
     const { searchParams } = new URL(req.url);
@@ -31,9 +28,6 @@ export async function GET(req: Request) {
     }
     const row = await getVerificationTokenByToken(token);
     if (!row) {
-      if (process.env.NODE_ENV === "development") {
-        console.warn("[verify-email] Token not found in DB. Token length:", token.length);
-      }
       return NextResponse.redirect(getLoginRedirect(req, "error=invalid_token"));
     }
     if (new Date() > row.expires) {
@@ -43,14 +37,8 @@ export async function GET(req: Request) {
     const email = row.email.trim().toLowerCase();
     await setEmailVerified(email);
     await deleteVerificationToken(token);
-    if (process.env.NODE_ENV === "development") {
-      console.log("[verify-email] Verified:", email);
-    }
     return NextResponse.redirect(getLoginRedirect(req, "verified=1"));
   } catch (e) {
-    if (process.env.NODE_ENV === "development") {
-      console.error("[verify-email]", e);
-    }
     return NextResponse.redirect(getLoginRedirect(req, "error=verify_failed"));
   }
 }

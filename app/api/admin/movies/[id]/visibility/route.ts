@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { isAdmin } from "@/lib/vip";
 import { updateMovieVisibility } from "@/lib/db";
+import { revalidatePath } from "next/cache";
 
 export async function POST(
   req: Request,
@@ -17,12 +18,13 @@ export async function POST(
     const body = await req.json();
     isVisible = Boolean(body.isVisible);
     await updateMovieVisibility(id, isVisible);
+    revalidatePath("/", "layout");
+    revalidatePath("/catalog");
+    revalidatePath("/danh-sach");
+    revalidatePath("/phim", "layout");
     return NextResponse.json({ ok: true, isVisible });
   } catch (e) {
     const errorMsg = e instanceof Error ? e.message : String(e);
-    if (process.env.NODE_ENV === "development") {
-      console.error("[visibility API] Error:", errorMsg, { id, isVisible });
-    }
     return NextResponse.json({ error: errorMsg }, { status: 400 });
   }
 }

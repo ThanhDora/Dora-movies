@@ -23,9 +23,16 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: { componentStack: string }) {
-    if (process.env.NODE_ENV === "development") {
-      console.error("ErrorBoundary caught an error:", error, errorInfo);
-    }
+    fetch("/api/telegram/error", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        error: error.message,
+        stack: error.stack,
+        componentStack: errorInfo.componentStack,
+        context: "ErrorBoundary",
+      }),
+    }).catch(() => {});
   }
 
   render() {

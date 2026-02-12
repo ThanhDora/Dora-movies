@@ -36,24 +36,10 @@ const secret =
 const isDevelopment = process.env.NODE_ENV === "development";
 
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-  if (isDevelopment) {
-    console.warn("[NextAuth] GOOGLE_CLIENT_ID hoặc GOOGLE_CLIENT_SECRET chưa được cấu hình");
-  }
 }
 
 const nextAuthUrl = process.env.NEXTAUTH_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 const googleCallbackUrl = `${nextAuthUrl}/api/auth/callback/google`;
-
-if (isDevelopment) {
-  console.log("[NextAuth] Google OAuth Config:", {
-    clientId: process.env.GOOGLE_CLIENT_ID ? `${process.env.GOOGLE_CLIENT_ID.substring(0, 30)}...` : "MISSING",
-    callbackUrl: googleCallbackUrl,
-    nextAuthUrl,
-    envNextAuthUrl: process.env.NEXTAUTH_URL,
-    vercelUrl: process.env.VERCEL_URL,
-    nodeEnv: process.env.NODE_ENV,
-  });
-}
 
 if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
   throw new Error("GOOGLE_CLIENT_ID và GOOGLE_CLIENT_SECRET phải được cấu hình trong environment variables");
@@ -109,9 +95,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       if (account?.provider === "google") {
         if (!user.email || !account?.providerAccountId) {
-          if (isDevelopment) {
-            console.error("[NextAuth] Google signIn: missing email or providerAccountId", { email: user.email, providerAccountId: account?.providerAccountId });
-          }
           return false;
         }
         try {
@@ -122,9 +105,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           if (user.email) sendLoginNotificationEmail(user.email).catch(() => {});
           return true;
         } catch (e) {
-          if (isDevelopment) {
-            console.error("[NextAuth] Google signIn callback error:", e);
-          }
           throw e;
         }
       }
@@ -181,9 +161,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           }
         }
         if (!session.user.id) {
-          if (isDevelopment) {
-            console.warn("[NextAuth] Session callback: missing user.id", { token });
-          }
         }
       }
       return session;

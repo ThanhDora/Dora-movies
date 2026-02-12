@@ -48,9 +48,6 @@ export async function signInWithGoogle() {
     if (err.digest?.startsWith("NEXT_REDIRECT")) {
       throw e;
     }
-    if (process.env.NODE_ENV === "development") {
-      console.error("[signInWithGoogle]", e);
-    }
     throw e;
   }
 }

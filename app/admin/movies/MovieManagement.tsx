@@ -1,27 +1,67 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { DbMovieApproval } from "@/types/db";
 import Toast from "@/components/Toast";
+import MovieImage from "./MovieImage";
+
+interface MovieWithName extends DbMovieApproval {
+  name?: string;
+  origin_name?: string;
+}
 
 export default function MovieManagement({
   movies,
   currentPage,
   totalPages,
   total,
+  filter = "all",
 }: {
   movies: DbMovieApproval[];
   currentPage: number;
   totalPages: number;
   total: number;
+  filter?: string;
 }) {
   const router = useRouter();
-  const [localMovies, setLocalMovies] = useState(movies);
+  const [localMovies, setLocalMovies] = useState<MovieWithName[]>(movies);
   const [loading, setLoading] = useState<string | null>(null);
   const [scheduleInputs, setScheduleInputs] = useState<Record<string, string>>({});
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [movieNames, setMovieNames] = useState<Record<string, { name: string; origin_name: string }>>({});
+
+  useEffect(() => {
+    async function fetchMovieNames() {
+      const names: Record<string, { name: string; origin_name: string }> = {};
+      const promises = movies.map(async (movie) => {
+        try {
+          const res = await fetch(`/api/movie-info/${encodeURIComponent(movie.slug)}`);
+          if (res.ok) {
+            const data = await res.json();
+            names[movie.id] = {
+              name: data.name || movie.slug,
+              origin_name: data.origin_name || "",
+            };
+          }
+        } catch {
+          names[movie.id] = {
+            name: movie.slug,
+            origin_name: "",
+          };
+        }
+      });
+      await Promise.allSettled(promises);
+      setMovieNames(names);
+      setLocalMovies(movies.map(m => ({
+        ...m,
+        name: names[m.id]?.name,
+        origin_name: names[m.id]?.origin_name,
+      })));
+    }
+    fetchMovieNames();
+  }, [movies]);
 
   async function toggleVisibility(id: string, currentVisible: boolean) {
     setLoading(id);
@@ -41,6 +81,9 @@ export default function MovieManagement({
           message: !currentVisible ? "Đã hiện phim trên web" : "Đã ẩn phim khỏi web",
           type: "success",
         });
+        setTimeout(() => {
+          router.refresh();
+        }, 500);
       } else {
         setToast({
           message: data.error || "Có lỗi xảy ra khi cập nhật",
@@ -100,6 +143,13 @@ export default function MovieManagement({
     if (page < 1 || page > totalPages) return;
     const params = new URLSearchParams(window.location.search);
     params.set("page", String(page));
+    if (filter !== "all") {
+      params.set("filter", filter);
+    }
+    const search = params.get("search");
+    if (search) {
+      params.set("search", search);
+    }
     router.push(`?${params.toString()}`);
   }
 
@@ -123,34 +173,43 @@ export default function MovieManagement({
               className="flex flex-col gap-3 px-4 py-4 hover:bg-white/5 transition-colors"
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <Link
-                    href={`/phim/${m.slug}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-medium text-[#ff2a14] hover:underline truncate block"
-                  >
-                    {m.slug}
-                  </Link>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    <span className="text-white/50 text-xs">
-                      {m.source} · {new Date(m.created_at).toLocaleDateString("vi-VN")}
-                    </span>
-                    {m.approved_at && (
+                <div className="flex gap-3 min-w-0 flex-1">
+                  <MovieImage slug={m.slug} />
+                  <div className="min-w-0 flex-1">
+                    <Link
+                      href={`/phim/${m.slug}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-white hover:text-[#ff2a14] hover:underline truncate block"
+                      title={m.name || m.slug}
+                    >
+                      {m.name || m.slug}
+                    </Link>
+                    {m.origin_name && (
+                      <div className="text-white/60 text-sm mt-0.5 truncate">
+                        {m.origin_name}
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-2 mt-1">
                       <span className="text-white/50 text-xs">
-                        · Duyệt: {new Date(m.approved_at).toLocaleDateString("vi-VN")}
+                        {m.source} · {new Date(m.created_at).toLocaleDateString("vi-VN")}
                       </span>
-                    )}
-                    {m.scheduled_at && (
-                      <span
-                        className={`text-xs ${
-                          isScheduledFuture ? "text-amber-400" : "text-green-400"
-                        }`}
-                      >
-                        · {isScheduledFuture ? "Hẹn giờ" : "Đã hiện"}:{" "}
-                        {new Date(m.scheduled_at).toLocaleString("vi-VN")}
-                      </span>
-                    )}
+                      {m.approved_at && (
+                        <span className="text-white/50 text-xs">
+                          · Duyệt: {new Date(m.approved_at).toLocaleDateString("vi-VN")}
+                        </span>
+                      )}
+                      {m.scheduled_at && (
+                        <span
+                          className={`text-xs ${
+                            isScheduledFuture ? "text-amber-400" : "text-green-400"
+                          }`}
+                        >
+                          · {isScheduledFuture ? "Hẹn giờ" : "Đã hiện"}:{" "}
+                          {new Date(m.scheduled_at).toLocaleString("vi-VN")}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 shrink-0">
