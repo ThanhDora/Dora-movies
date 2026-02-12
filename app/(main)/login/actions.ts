@@ -44,6 +44,10 @@ export async function signInWithGoogle() {
   try {
     await signIn("google", { redirectTo: "/?login=success" });
   } catch (e) {
+    const err = e as Error & { digest?: string };
+    if (err.digest?.startsWith("NEXT_REDIRECT")) {
+      throw e;
+    }
     if (process.env.NODE_ENV === "development") {
       console.error("[signInWithGoogle]", e);
     }
@@ -52,5 +56,13 @@ export async function signInWithGoogle() {
 }
 
 export async function signInWithFacebook() {
-  await signIn("facebook", { redirectTo: "/?login=success" });
+  try {
+    await signIn("facebook", { redirectTo: "/?login=success" });
+  } catch (e) {
+    const err = e as Error & { digest?: string };
+    if (err.digest?.startsWith("NEXT_REDIRECT")) {
+      throw e;
+    }
+    throw e;
+  }
 }

@@ -33,6 +33,10 @@ const secret =
     ? Buffer.from(process.env.NEXTAUTH_URL + "fallback-secret-salt", "utf8").toString("base64").slice(0, 32)
     : "production-fallback-secret-min-32-chars");
 
+if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+  console.warn("[NextAuth] GOOGLE_CLIENT_ID hoặc GOOGLE_CLIENT_SECRET chưa được cấu hình");
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   secret,
   trustHost: true,

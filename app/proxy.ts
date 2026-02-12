@@ -9,7 +9,7 @@ function hasSessionCookie(cookies: NextRequest["cookies"]): boolean {
   );
 }
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
   const hasSession = hasSessionCookie(req.cookies);
   if (path.startsWith("/admin") || path.startsWith("/vip") || path.startsWith("/profile")) {
