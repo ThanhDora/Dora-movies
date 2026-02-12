@@ -2,7 +2,7 @@
 // import Image from "next/image";
 import { getMovie, getEpisode, getWatchUrl } from "@/lib/api";
 import { auth } from "@/lib/auth";
-import { recordWatchHistory } from "@/lib/db";
+import { recordWatchHistory, getWatchProgress } from "@/lib/db";
 // import MovieCard from "@/components/MovieCard";
 // import StarRating from "@/components/StarRating";
 // import TrailerModal from "@/components/TrailerModal";
@@ -42,6 +42,7 @@ export default async function PhimPage({
       }
       if (!data) notFound();
       const session = await auth();
+      let initialProgressSeconds: number | undefined;
       if (session?.user?.id) {
         recordWatchHistory({
           userId: session.user.id,
@@ -50,6 +51,10 @@ export default async function PhimPage({
           movieTitle: data.currentMovie.name,
           posterUrl: data.currentMovie.thumb_url || data.currentMovie.poster_url || null,
         }).catch(() => { });
+        const progress = await getWatchProgress(session.user.id, segment);
+        if (progress?.episodePath === second && progress.progressSeconds != null && progress.progressSeconds > 0) {
+          initialProgressSeconds = progress.progressSeconds;
+        }
       }
       return (
         <EpisodeContent
@@ -57,6 +62,9 @@ export default async function PhimPage({
           episode={data.episode}
           movie_related={data.movie_related}
           movie_related_top={data.movie_related_top}
+          episodePath={second}
+          initialProgressSeconds={initialProgressSeconds}
+          isLoggedIn={!!session?.user?.id}
         />
       );
     }

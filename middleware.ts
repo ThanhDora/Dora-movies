@@ -12,7 +12,7 @@ function hasSessionCookie(cookies: NextRequest["cookies"]): boolean {
 export function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
   const hasSession = hasSessionCookie(req.cookies);
-  if (path.startsWith("/admin") || path.startsWith("/vip") || path.startsWith("/profile") || path.startsWith("/phim/")) {
+  if (path.startsWith("/admin") || path.startsWith("/vip") || path.startsWith("/profile")) {
     if (!hasSession) {
       const url = new URL("/login", req.nextUrl.origin);
       url.searchParams.set("callbackUrl", path);
@@ -23,5 +23,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/vip/:path*", "/profile/:path*", "/phim/:path*"],
+  matcher: ["/admin/:path*", "/vip/:path*", "/profile/:path*"],
 };

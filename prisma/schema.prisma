@@ -50,14 +50,15 @@ model User {
 }
 
 model WatchHistory {
-  id          String   @id @default(uuid())
-  userId      String   @map("user_id")
-  movieSlug   String   @map("movie_slug")
-  episodePath String?  @map("episode_path")
-  movieTitle  String   @map("movie_title")
-  posterUrl   String?  @map("poster_url")
-  watchedAt   DateTime @default(now()) @map("watched_at")
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  movieSlug      String   @map("movie_slug")
+  episodePath    String?  @map("episode_path")
+  movieTitle     String   @map("movie_title")
+  posterUrl      String?  @map("poster_url")
+  progressSeconds Int?    @map("progress_seconds")
+  watchedAt      DateTime @default(now()) @map("watched_at")
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@unique([userId, movieSlug])
   @@index([userId])
   @@index([userId, watchedAt(sort: Desc)])

@@ -243,14 +243,13 @@ export default function Header({
                 </>
               )}
             </div>
-            <button
-              type="button"
+            <Link
+              href="/search"
               className="md:hidden p-2 text-white touch-manipulation min-h-[44px] min-w-[44px] flex items-center justify-center"
-              onClick={() => { setSearchOpen(true); setMenuOpen(true); }}
               aria-label="Tìm kiếm"
             >
               <SearchIcon />
-            </button>
+            </Link>
           </div>
         </div>
       </header>
@@ -300,40 +299,14 @@ export default function Header({
                   Thành viên
                 </Link>
               )}
-              <div ref={resultRef}>
-                <input
-                  type="text"
-                  className="w-full h-10 px-3 rounded-lg bg-white/10 text-white placeholder-white/50 text-xs border border-white/10 outline-none focus:border-white/20"
-                  placeholder="Tìm phim..."
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  onFocus={() => setSearchOpen(true)}
-                />
-                {(results.length > 0 || loading) && (
-                  <div className="mt-1.5 py-1.5 max-h-[180px] overflow-auto rounded-lg bg-[#25252b]">
-                    {loading ? (
-                      <p className="text-white/70 text-xs px-3 py-1.5">Đang tìm...</p>
-                    ) : (
-                      <ul>
-                        {results.map((item) => (
-                          <li key={item.slug}>
-                            <Link
-                              href={item.slug}
-                              className="flex gap-2 px-3 py-2 text-white min-h-[40px] items-center active:bg-white/10 text-xs"
-                              onClick={() => { setResults([]); setQuery(""); closeMenu(); }}
-                            >
-                              <span className="relative w-8 h-11 shrink-0 rounded overflow-hidden bg-white/10">
-                                <Image src={item.image || "/placeholder.svg"} alt="" width={32} height={44} unoptimized className="object-cover w-full h-full" />
-                              </span>
-                              <span className="truncate">{item.title}{item.year ? ` (${item.year})` : ""}</span>
-                            </Link>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
-              </div>
+              <Link
+                href="/search"
+                className="flex items-center gap-3 w-full min-h-[48px] px-4 py-3 rounded-xl bg-white/10 text-white font-medium text-sm"
+                onClick={closeMenu}
+              >
+                <SearchIcon />
+                Tìm phim
+              </Link>
               <nav className="grid grid-cols-2 gap-x-2 gap-y-1 pt-1">
                 {menu.map((item) =>
                   item.children && item.children.length > 0 ? (

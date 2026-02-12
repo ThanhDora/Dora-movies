@@ -445,6 +445,7 @@ export interface WatchHistoryItem {
   movieTitle: string;
   posterUrl: string | null;
   watchedAt: string;
+  progressSeconds?: number | null;
 }
 
 export async function recordWatchHistory(params: {
@@ -453,6 +454,7 @@ export async function recordWatchHistory(params: {
   episodePath?: string | null;
   movieTitle: string;
   posterUrl?: string | null;
+  progressSeconds?: number | null;
 }): Promise<void> {
   const prisma = getPrisma();
   if (!prisma) return;
@@ -467,17 +469,51 @@ export async function recordWatchHistory(params: {
         episodePath: params.episodePath ?? null,
         movieTitle: params.movieTitle,
         posterUrl: params.posterUrl ?? null,
+        progressSeconds: params.progressSeconds ?? null,
       },
       update: {
         episodePath: params.episodePath ?? null,
         movieTitle: params.movieTitle,
         posterUrl: params.posterUrl ?? null,
         watchedAt: new Date(),
+        ...(params.progressSeconds != null && { progressSeconds: params.progressSeconds }),
       },
     });
   } catch {
     //
   }
+}
+
+export async function updateWatchProgress(params: {
+  userId: string;
+  movieSlug: string;
+  episodePath: string | null;
+  progressSeconds: number;
+}): Promise<void> {
+  const prisma = getPrisma();
+  if (!prisma) return;
+  try {
+    await prisma.watchHistory.updateMany({
+      where: { userId: params.userId, movieSlug: params.movieSlug },
+      data: {
+        episodePath: params.episodePath,
+        progressSeconds: params.progressSeconds,
+        watchedAt: new Date(),
+      },
+    });
+  } catch {
+    //
+  }
+}
+
+export async function getWatchProgress(userId: string, movieSlug: string): Promise<{ episodePath: string | null; progressSeconds: number | null } | null> {
+  const prisma = getPrisma();
+  if (!prisma) return null;
+  const row = await prisma.watchHistory.findUnique({
+    where: { userId_movieSlug: { userId, movieSlug } },
+    select: { episodePath: true, progressSeconds: true },
+  });
+  return row ? { episodePath: row.episodePath, progressSeconds: row.progressSeconds ?? null } : null;
 }
 
 export async function getWatchHistory(userId: string, limit = 24): Promise<WatchHistoryItem[]> {
@@ -488,11 +524,12 @@ export async function getWatchHistory(userId: string, limit = 24): Promise<Watch
     orderBy: { watchedAt: "desc" },
     take: limit,
   });
-  return rows.map((r: { movieSlug: string; episodePath: string | null; movieTitle: string; posterUrl: string | null; watchedAt: Date }) => ({
+  return rows.map((r: { movieSlug: string; episodePath: string | null; movieTitle: string; posterUrl: string | null; watchedAt: Date; progressSeconds: number | null }) => ({
     movieSlug: r.movieSlug,
     episodePath: r.episodePath,
     movieTitle: r.movieTitle,
     posterUrl: r.posterUrl,
     watchedAt: r.watchedAt.toISOString(),
+    progressSeconds: r.progressSeconds ?? null,
   }));
 }
