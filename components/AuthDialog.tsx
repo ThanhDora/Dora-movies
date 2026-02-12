@@ -279,11 +279,22 @@ export default function AuthDialog({
                 <form
                   action={async () => {
                     setGoogleLoading(true);
+                    setLoginError("");
                     try {
                       await signInWithGoogle();
                     } catch (e) {
                       setGoogleLoading(false);
-                      setLoginError("Không thể kết nối với Google. Vui lòng thử lại.");
+                      const err = e as Error;
+                      if (err.message?.includes("redirect_uri_mismatch") || err.message?.includes("invalid_client")) {
+                        setLoginError("Lỗi cấu hình Google OAuth. Vui lòng kiểm tra redirect URI trong Google Cloud Console.");
+                      } else if (err.message?.includes("chưa được cấu hình")) {
+                        setLoginError("Google OAuth chưa được cấu hình. Vui lòng liên hệ quản trị viên.");
+                      } else {
+                        setLoginError("Không thể kết nối với Google. Vui lòng thử lại.");
+                      }
+                      if (process.env.NODE_ENV === "development") {
+                        console.error("[AuthDialog] Google login error:", e);
+                      }
                     }
                   }}
                   className="flex"
@@ -420,11 +431,22 @@ export default function AuthDialog({
                 <form
                   action={async () => {
                     setGoogleLoading(true);
+                    setRegisterError("");
                     try {
                       await signInWithGoogle();
                     } catch (e) {
                       setGoogleLoading(false);
-                      setRegisterError("Không thể kết nối với Google. Vui lòng thử lại.");
+                      const err = e as Error;
+                      if (err.message?.includes("redirect_uri_mismatch") || err.message?.includes("invalid_client")) {
+                        setRegisterError("Lỗi cấu hình Google OAuth. Vui lòng kiểm tra redirect URI trong Google Cloud Console.");
+                      } else if (err.message?.includes("chưa được cấu hình")) {
+                        setRegisterError("Google OAuth chưa được cấu hình. Vui lòng liên hệ quản trị viên.");
+                      } else {
+                        setRegisterError("Không thể kết nối với Google. Vui lòng thử lại.");
+                      }
+                      if (process.env.NODE_ENV === "development") {
+                        console.error("[AuthDialog] Google register error:", e);
+                      }
                     }
                   }}
                   className="flex"

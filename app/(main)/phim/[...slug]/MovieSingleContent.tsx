@@ -10,7 +10,7 @@ import type { Movie, Episode } from "@/types";
 // import LazyMovieGrid from "@/components/LazyMovieGrid";
 // import StarRating from "@/components/StarRating";
 import TrailerModal from "@/components/TrailerModal";
-// import AddToPlaylistModal from "@/components/AddToPlaylistModal";
+import AddToPlaylistModal from "@/components/AddToPlaylistModal";
 
 const LOADING_GIF = "/loading.gif";
 const FAVORITE_KEY = "dora-favorites";
@@ -54,7 +54,7 @@ export default function MovieSingleContent({
 }) {
   const { data: session } = useSession();
   const [trailerOpen, setTrailerOpen] = useState(false);
-  const [] = useState(false);
+  const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("episodes");
   const [favorite, setFavorite] = useState(false);
   const thumb = currentMovie.thumb_url || currentMovie.poster_url || LOADING_GIF;
@@ -264,8 +264,70 @@ export default function MovieSingleContent({
                   )}
                 </div>
               </div>
-              {/* Phần button giữ nguyên, tao không thấy lỗi */}
-              ...
+              <div className="flex flex-row lg:flex-col gap-2 lg:gap-3 lg:w-[220px] shrink-0 flex-wrap lg:flex-nowrap">
+                {watchUrl && (
+                  <Link
+                    href={watchUrl}
+                    className="flex-1 lg:flex-none flex items-center justify-center gap-2 h-11 lg:h-12 px-4 lg:px-6 rounded-lg lg:rounded-xl bg-gradient-to-r from-[#e6b800] to-[#f5c800] hover:from-[#f5c800] hover:to-[#ffd700] text-black font-bold text-sm transition-all shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    <PlayIcon className="w-4 h-4 lg:w-5 lg:h-5" />
+                    <span className="hidden sm:inline">Xem ngay</span>
+                    <span className="sm:hidden">Xem</span>
+                  </Link>
+                )}
+                <div className="flex gap-2 lg:flex-col lg:gap-3 flex-1 lg:flex-none">
+                  {trailerId && (
+                    <button
+                      type="button"
+                      onClick={() => setTrailerOpen(true)}
+                      className="flex-1 lg:flex-none flex items-center justify-center gap-2 h-11 lg:h-12 px-3 lg:px-6 rounded-lg lg:rounded-xl bg-[#1a1a1e] hover:bg-[#25252b] text-white/90 hover:text-white font-medium text-xs lg:text-sm transition-all border border-white/10 hover:border-white/20 active:scale-[0.98]"
+                      title="Trailer"
+                    >
+                      <svg className="w-4 h-4 lg:w-5 lg:h-5 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M10 16.5l6-4.5-6-4.5v9zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" />
+                      </svg>
+                      <span className="hidden lg:inline">Trailer</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={toggleFavorite}
+                    className={`flex-1 lg:flex-none flex items-center justify-center gap-2 h-11 lg:h-12 px-3 lg:px-6 rounded-lg lg:rounded-xl font-medium text-xs lg:text-sm transition-all border active:scale-[0.98] ${
+                      favorite
+                        ? "bg-red-500/15 hover:bg-red-500/25 text-red-400 border-red-500/40 hover:border-red-500/60"
+                        : "bg-[#1a1a1e] hover:bg-[#25252b] text-white/90 hover:text-white border-white/10 hover:border-white/20"
+                    }`}
+                    title={favorite ? "Đã thích" : "Yêu thích"}
+                  >
+                    <svg className="w-4 h-4 lg:w-5 lg:h-5 shrink-0" fill={favorite ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    </svg>
+                    <span className="hidden lg:inline">{favorite ? "Đã thích" : "Yêu thích"}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleShare}
+                    className="flex-1 lg:flex-none flex items-center justify-center gap-2 h-11 lg:h-12 px-3 lg:px-6 rounded-lg lg:rounded-xl bg-[#1a1a1e] hover:bg-[#25252b] text-white/90 hover:text-white font-medium text-xs lg:text-sm transition-all border border-white/10 hover:border-white/20 active:scale-[0.98]"
+                    title="Chia sẻ"
+                  >
+                    <svg className="w-4 h-4 lg:w-5 lg:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                    </svg>
+                    <span className="hidden lg:inline">Chia sẻ</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPlaylistModalOpen(true)}
+                    className="flex-1 lg:flex-none flex items-center justify-center gap-2 h-11 lg:h-12 px-3 lg:px-6 rounded-lg lg:rounded-xl bg-[#1a1a1e] hover:bg-[#25252b] text-white/90 hover:text-white font-medium text-xs lg:text-sm transition-all border border-white/10 hover:border-white/20 active:scale-[0.98]"
+                    title="Thêm vào playlist"
+                  >
+                    <svg className="w-4 h-4 lg:w-5 lg:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span className="hidden lg:inline">Thêm vào playlist</span>
+                  </button>
+                </div>
+              </div>
             </div>
             {/* Phần content + tabs giữ nguyên, chỉ fix episodes tab */}
             <div className="border-t border-white/10">
@@ -322,7 +384,91 @@ export default function MovieSingleContent({
                     )}
                   </div>
                 )}
-                {/* Các tab khác giữ nguyên */}
+                {activeTab === "gallery" && (
+                  <div>
+                    <p className="text-white/50 text-sm">Gallery đang được cập nhật.</p>
+                  </div>
+                )}
+                {activeTab === "actors" && (
+                  <div>
+                    {currentMovie.actors && currentMovie.actors.length > 0 ? (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                        {currentMovie.actors.map((actor) => (
+                          <Link
+                            key={actor.id}
+                            href={actor.url || `/dien-vien/${actor.slug}`}
+                            className="group flex flex-col items-center p-4 rounded-xl bg-[#25252b] hover:bg-[#2a2a32] transition-colors"
+                          >
+                            <div className="w-20 h-20 rounded-full bg-[#1f1f23] mb-3 flex items-center justify-center text-white/60 text-2xl font-bold group-hover:scale-110 transition-transform">
+                              {actor.name.charAt(0).toUpperCase()}
+                            </div>
+                            <p className="text-white font-medium text-sm text-center group-hover:text-[#e6b800] transition-colors">
+                              {actor.name}
+                            </p>
+                          </Link>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-white/50 text-sm">Chưa có thông tin diễn viên.</p>
+                    )}
+                    {currentMovie.directors && currentMovie.directors.length > 0 && (
+                      <div className="mt-6">
+                        <h3 className="text-white font-semibold text-base mb-4">Đạo diễn</h3>
+                        <div className="flex flex-wrap gap-3">
+                          {currentMovie.directors.map((director) => (
+                            <Link
+                              key={director.id}
+                              href={director.url || `/dao-dien/${director.slug}`}
+                              className="px-4 py-2 rounded-lg bg-[#25252b] hover:bg-[#2a2a32] text-white/90 hover:text-[#e6b800] transition-colors text-sm font-medium"
+                            >
+                              {director.name}
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {activeTab === "suggestions" && (
+                  <div>
+                    {movie_related && movie_related.length > 0 ? (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                        {movie_related.map((movie) => (
+                          <Link
+                            key={movie.id}
+                            href={movie.url || `/phim/${movie.slug}`}
+                            className="group"
+                          >
+                            <div className="relative aspect-2/3 rounded-lg overflow-hidden bg-[#232328] mb-2">
+                              <Image
+                                src={movie.thumb_url || movie.poster_url || LOADING_GIF}
+                                alt={movie.name}
+                                width={200}
+                                height={300}
+                                unoptimized={(movie.thumb_url || movie.poster_url || "").startsWith("http")}
+                                className="object-cover w-full h-full group-hover:scale-105 transition-transform"
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = LOADING_GIF;
+                                }}
+                              />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <PlayIcon className="w-12 h-12 text-white" />
+                              </div>
+                            </div>
+                            <p className="text-white text-sm font-medium line-clamp-2 group-hover:text-[#e6b800] transition-colors">
+                              {movie.name}
+                            </p>
+                            {movie.origin_name && (
+                              <p className="text-white/50 text-xs mt-1 line-clamp-1">{movie.origin_name}</p>
+                            )}
+                          </Link>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-white/50 text-sm">Chưa có phim đề xuất.</p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -330,6 +476,14 @@ export default function MovieSingleContent({
         {/* Comments + modal giữ nguyên */}
       </main>
       {trailerId && <TrailerModal isOpen={trailerOpen} onClose={() => setTrailerOpen(false)} embedUrl={`https://www.youtube.com/embed/${trailerId}`} />}
+      {playlistModalOpen && (
+        <AddToPlaylistModal
+          movieSlug={currentMovie.slug}
+          movieTitle={currentMovie.name}
+          posterUrl={currentMovie.poster_url || currentMovie.thumb_url || null}
+          onClose={() => setPlaylistModalOpen(false)}
+        />
+      )}
     </>
   );
 }

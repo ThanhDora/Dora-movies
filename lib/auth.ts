@@ -40,13 +40,14 @@ if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
 const nextAuthUrl = process.env.NEXTAUTH_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 const googleCallbackUrl = `${nextAuthUrl}/api/auth/callback/google`;
 
-if (process.env.NODE_ENV === "development") {
-  console.log("[NextAuth] Google OAuth Config:", {
-    clientId: process.env.GOOGLE_CLIENT_ID ? `${process.env.GOOGLE_CLIENT_ID.substring(0, 20)}...` : "MISSING",
-    callbackUrl: googleCallbackUrl,
-    nextAuthUrl,
-  });
-}
+console.log("[NextAuth] Google OAuth Config:", {
+  clientId: process.env.GOOGLE_CLIENT_ID ? `${process.env.GOOGLE_CLIENT_ID.substring(0, 30)}...` : "MISSING",
+  callbackUrl: googleCallbackUrl,
+  nextAuthUrl,
+  envNextAuthUrl: process.env.NEXTAUTH_URL,
+  vercelUrl: process.env.VERCEL_URL,
+  nodeEnv: process.env.NODE_ENV,
+});
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   secret,
