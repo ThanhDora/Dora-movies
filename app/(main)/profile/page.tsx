@@ -2,12 +2,14 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { isVip, isAdmin } from "@/lib/vip";
-import { getWatchHistory, getUserById } from "@/lib/db";
+import { getWatchHistory, getUserById, getFavorites, getPlaylists } from "@/lib/db";
 import ProfileActions from "./ProfileActions";
 import ProfileHeader from "./ProfileHeader";
 import ProfileInfoSection from "./ProfileInfoSection";
 import ChangePasswordForm from "./ChangePasswordForm";
 import WatchHistorySection from "./WatchHistorySection";
+import FavoritesSection from "./FavoritesSection";
+import PlaylistsSection from "./PlaylistsSection";
 import AdminQuickLinks from "./AdminQuickLinks";
 
 export default async function ProfilePage() {
@@ -32,6 +34,14 @@ export default async function ProfilePage() {
   try {
     const user = await getUserById(session.user.id!);
     hasPassword = !!user?.password_hash;
+  } catch {
+    //
+  }
+
+  let favorites: { movieSlug: string; movieTitle: string | null; posterUrl: string | null; createdAt: string }[] = [];
+  let playlists: { id: string; name: string; createdAt: string; items: { id: string; movieSlug: string; movieTitle: string | null; posterUrl: string | null; sortOrder: number }[] }[] = [];
+  try {
+    [favorites, playlists] = await Promise.all([getFavorites(session.user.id!), getPlaylists(session.user.id!)]);
   } catch {
     //
   }
@@ -77,6 +87,14 @@ export default async function ProfilePage() {
 
         <section className="w-full mb-8">
           <WatchHistorySection items={watchHistory} />
+        </section>
+
+        <section className="w-full mb-8">
+          <FavoritesSection items={favorites} />
+        </section>
+
+        <section className="w-full mb-8">
+          <PlaylistsSection initialPlaylists={playlists} />
         </section>
 
         {admin && (

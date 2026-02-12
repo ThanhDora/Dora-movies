@@ -511,9 +511,11 @@ export async function getWatchProgress(userId: string, movieSlug: string): Promi
   if (!prisma) return null;
   const row = await prisma.watchHistory.findUnique({
     where: { userId_movieSlug: { userId, movieSlug } },
-    select: { episodePath: true, progressSeconds: true },
   });
-  return row ? { episodePath: row.episodePath, progressSeconds: row.progressSeconds ?? null } : null;
+  if (!row) return null;
+  const episodePath = row.episodePath ?? null;
+  const progressSeconds = row.progressSeconds != null ? row.progressSeconds : null;
+  return { episodePath, progressSeconds };
 }
 
 export async function getWatchHistory(userId: string, limit = 24): Promise<WatchHistoryItem[]> {
@@ -532,4 +534,139 @@ export async function getWatchHistory(userId: string, limit = 24): Promise<Watch
     watchedAt: r.watchedAt.toISOString(),
     progressSeconds: r.progressSeconds ?? null,
   }));
+}
+
+export interface FavoriteItem {
+  movieSlug: string;
+  movieTitle: string | null;
+  posterUrl: string | null;
+  createdAt: string;
+}
+
+export async function getFavorites(userId: string, limit = 50): Promise<FavoriteItem[]> {
+  const prisma = getPrisma();
+  if (!prisma) return [];
+  const rows = await prisma.userFavorite.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
+  return rows.map((r) => ({
+    movieSlug: r.movieSlug,
+    movieTitle: r.movieTitle ?? null,
+    posterUrl: r.posterUrl ?? null,
+    createdAt: r.createdAt.toISOString(),
+  }));
+}
+
+export async function addFavorite(params: { userId: string; movieSlug: string; movieTitle?: string | null; posterUrl?: string | null }): Promise<void> {
+  const prisma = getPrisma();
+  if (!prisma) return;
+  await prisma.userFavorite.upsert({
+    where: { userId_movieSlug: { userId: params.userId, movieSlug: params.movieSlug } },
+    create: { userId: params.userId, movieSlug: params.movieSlug, movieTitle: params.movieTitle ?? null, posterUrl: params.posterUrl ?? null },
+    update: { movieTitle: params.movieTitle ?? null, posterUrl: params.posterUrl ?? null },
+  });
+}
+
+export async function removeFavorite(userId: string, movieSlug: string): Promise<void> {
+  const prisma = getPrisma();
+  if (!prisma) return;
+  await prisma.userFavorite.deleteMany({ where: { userId, movieSlug } });
+}
+
+export async function isFavorite(userId: string, movieSlug: string): Promise<boolean> {
+  const prisma = getPrisma();
+  if (!prisma) return false;
+  const r = await prisma.userFavorite.findUnique({ where: { userId_movieSlug: { userId, movieSlug } } });
+  return !!r;
+}
+
+export interface PlaylistItemRow {
+  id: string;
+  movieSlug: string;
+  movieTitle: string | null;
+  posterUrl: string | null;
+  sortOrder: number;
+}
+
+export interface PlaylistRow {
+  id: string;
+  name: string;
+  createdAt: string;
+  items: PlaylistItemRow[];
+}
+
+export async function getPlaylists(userId: string): Promise<PlaylistRow[]> {
+  const prisma = getPrisma();
+  if (!prisma) return [];
+  const rows = await prisma.playlist.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+    include: { items: { orderBy: { sortOrder: "asc" } } },
+  });
+  return rows.map((p) => ({
+    id: p.id,
+    name: p.name,
+    createdAt: p.createdAt.toISOString(),
+    items: p.items.map((i) => ({
+      id: i.id,
+      movieSlug: i.movieSlug,
+      movieTitle: i.movieTitle ?? null,
+      posterUrl: i.posterUrl ?? null,
+      sortOrder: i.sortOrder,
+    })),
+  }));
+}
+
+export async function createPlaylist(userId: string, name: string): Promise<string> {
+  const prisma = getPrisma();
+  if (!prisma) throw new Error("Database not available");
+  const p = await prisma.playlist.create({ data: { userId, name: name.trim() || "Danh sách mới" } });
+  return p.id;
+}
+
+export async function getPlaylistById(userId: string, playlistId: string): Promise<PlaylistRow | null> {
+  const prisma = getPrisma();
+  if (!prisma) return null;
+  const p = await prisma.playlist.findFirst({
+    where: { id: playlistId, userId },
+    include: { items: { orderBy: { sortOrder: "asc" } } },
+  });
+  if (!p) return null;
+  return {
+    id: p.id,
+    name: p.name,
+    createdAt: p.createdAt.toISOString(),
+    items: p.items.map((i) => ({
+      id: i.id,
+      movieSlug: i.movieSlug,
+      movieTitle: i.movieTitle ?? null,
+      posterUrl: i.posterUrl ?? null,
+      sortOrder: i.sortOrder,
+    })),
+  };
+}
+
+export async function addToPlaylist(playlistId: string, params: { movieSlug: string; movieTitle?: string | null; posterUrl?: string | null }): Promise<void> {
+  const prisma = getPrisma();
+  if (!prisma) return;
+  const count = await prisma.playlistItem.count({ where: { playlistId } });
+  await prisma.playlistItem.upsert({
+    where: { playlistId_movieSlug: { playlistId, movieSlug: params.movieSlug } },
+    create: { playlistId, movieSlug: params.movieSlug, movieTitle: params.movieTitle ?? null, posterUrl: params.posterUrl ?? null, sortOrder: count },
+    update: {},
+  });
+}
+
+export async function removeFromPlaylist(playlistId: string, movieSlug: string): Promise<void> {
+  const prisma = getPrisma();
+  if (!prisma) return;
+  await prisma.playlistItem.deleteMany({ where: { playlistId, movieSlug } });
+}
+
+export async function deletePlaylist(userId: string, playlistId: string): Promise<void> {
+  const prisma = getPrisma();
+  if (!prisma) return;
+  await prisma.playlist.deleteMany({ where: { id: playlistId, userId } });
 }

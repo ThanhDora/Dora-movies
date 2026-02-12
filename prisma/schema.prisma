@@ -33,20 +33,57 @@ enum PaymentStatus {
 }
 
 model User {
-  id              String    @id @default(uuid())
-  authId          String?   @unique @map("auth_id")
-  email           String    @unique
-  passwordHash    String?   @map("password_hash")
+  id              String         @id @default(uuid())
+  authId          String?        @unique @map("auth_id")
+  email           String         @unique
+  passwordHash    String?        @map("password_hash")
   name            String?
   image           String?
-  role            UserRole  @default(free)
-  vipUntil        DateTime? @map("vip_until")
-  emailVerifiedAt DateTime? @map("email_verified_at")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  role            UserRole       @default(free)
+  vipUntil        DateTime?      @map("vip_until")
+  emailVerifiedAt DateTime?      @map("email_verified_at")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
   approvedMovies  MovieApproval[] @relation("ApprovedBy")
   payments        Payment[]
   watchHistory    WatchHistory[]
+  favorites       UserFavorite[]
+  playlists       Playlist[]
+}
+
+model UserFavorite {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  movieSlug  String   @map("movie_slug")
+  movieTitle String?  @map("movie_title")
+  posterUrl  String?  @map("poster_url")
+  createdAt  DateTime @default(now()) @map("created_at")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([userId, movieSlug])
+  @@index([userId])
+}
+
+model Playlist {
+  id        String         @id @default(uuid())
+  userId    String         @map("user_id")
+  name      String
+  createdAt DateTime       @default(now()) @map("created_at")
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     PlaylistItem[]
+  @@index([userId])
+}
+
+model PlaylistItem {
+  id         String   @id @default(uuid())
+  playlistId String   @map("playlist_id")
+  movieSlug  String   @map("movie_slug")
+  movieTitle String?  @map("movie_title")
+  posterUrl  String?  @map("poster_url")
+  sortOrder  Int      @default(0) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at")
+  playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  @@unique([playlistId, movieSlug])
+  @@index([playlistId])
 }
 
 model WatchHistory {

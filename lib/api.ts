@@ -301,13 +301,27 @@ function filterByApproved<T extends { slug: string }>(items: T[], approved: Set<
 export async function getHome(): Promise<HomeData> {
   if (!BASE) return emptyHomeData();
   try {
-    const [cats, regs, latest, single, series, approvedSet] = await Promise.all([
+    const [cats, regs, latest, single, series, approvedSet, animeRes] = await Promise.all([
       fetchApi<OphimV1SimpleList>("/v1/api/the-loai"),
       fetchApi<OphimV1SimpleList>("/v1/api/quoc-gia"),
       fetchApi<OphimV1List>("/v1/api/danh-sach/phim-moi-cap-nhat?page=1"),
       fetchApi<OphimV1List>("/v1/api/danh-sach/phim-le?page=1"),
       fetchApi<OphimV1List>("/v1/api/danh-sach/phim-bo?page=1"),
       safeApprovedSlugs(),
+      (async () => {
+        const results = await Promise.allSettled([
+          fetchApi<OphimV1List>("/v1/api/the-loai/hoat-hinh?page=1"),
+          fetchApi<OphimV1List>("/v1/api/the-loai/anime?page=1"),
+          fetchApi<OphimV1List>("/v1/api/the-loai/hoat-hinh-nhat-ban?page=1"),
+        ]);
+        const slugs: [string, string][] = [["hoat-hinh", "/the-loai/hoat-hinh"], ["anime", "/the-loai/anime"], ["hoat-hinh-nhat-ban", "/the-loai/hoat-hinh-nhat-ban"]];
+        for (let i = 0; i < results.length; i++) {
+          const r = results[i];
+          if (r.status === "fulfilled" && r.value?.data?.items?.length)
+            return { res: r.value, link: slugs[i][1] };
+        }
+        return null;
+      })(),
     ]);
 
   const categoriesRaw = Array.isArray(cats.data) ? cats.data : cats.data.items;
@@ -343,27 +357,50 @@ export async function getHome(): Promise<HomeData> {
   singleMovies = filterByApproved(singleMovies, approvedSet);
   seriesMovies = filterByApproved(seriesMovies, approvedSet);
 
+  let animeMovies: Movie[] = [];
+  let animeLink = "/the-loai/hoat-hinh";
+  if (animeRes && animeRes.res?.data?.items?.length) {
+    const cdnAnime = animeRes.res.data.APP_DOMAIN_CDN_IMAGE;
+    animeMovies = animeRes.res.data.items.map((it) => mapItemToMovie(it as OphimRawItem, cdnAnime));
+    animeMovies = filterByApproved(animeMovies, approvedSet);
+    animeLink = animeRes.link;
+  }
+  if (animeMovies.length === 0 && latestMovies.length > 0) {
+    animeMovies = latestMovies.slice(0, 24);
+    animeLink = "/danh-sach/phim-moi-cap-nhat";
+  }
+
+  const sectionsOut: HomeData["sections"] = [
+    { label: "Phim mới cập nhật", show_template: "section_thumb", data: latestMovies },
+    {
+      label: "Phim lẻ",
+      show_template: "section_side",
+      data: singleMovies,
+      topview: singleMovies.slice(0, 10),
+      link: "/danh-sach/phim-le",
+    },
+    {
+      label: "Phim bộ",
+      show_template: "section_side",
+      data: seriesMovies,
+      topview: seriesMovies.slice(0, 10),
+      link: "/danh-sach/phim-bo",
+    },
+  ];
+  if (animeMovies.length > 0) {
+    sectionsOut.push({
+      label: "Kho Tàng Anime",
+      show_template: "section_thumb",
+      data: animeMovies,
+      link: animeLink,
+    });
+  }
+
     return {
       menu,
       title: "Dora Movies",
       slider: { label: "Phim mới", data: latestMovies.slice(0, 10) },
-      sections: [
-        { label: "Phim mới cập nhật", show_template: "section_thumb", data: latestMovies },
-        {
-          label: "Phim lẻ",
-          show_template: "section_side",
-          data: singleMovies,
-          topview: singleMovies.slice(0, 10),
-          link: "/danh-sach/phim-le",
-        },
-        {
-          label: "Phim bộ",
-          show_template: "section_side",
-          data: seriesMovies,
-          topview: seriesMovies.slice(0, 10),
-          link: "/danh-sach/phim-bo",
-        },
-      ],
+      sections: sectionsOut,
       settings: {},
     };
   } catch {

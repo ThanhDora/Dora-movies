@@ -3,21 +3,18 @@
 import Link from "next/link";
 import { useState } from "react";
 
-export type WatchHistoryItem = {
+export type FavoriteItem = {
   movieSlug: string;
-  episodePath: string | null;
-  movieTitle: string;
+  movieTitle: string | null;
   posterUrl: string | null;
-  watchedAt: string;
+  createdAt: string;
 };
 
 const ROW_LIMIT = 20;
 
-function MovieCard({ item }: { item: WatchHistoryItem }) {
-  const href = item.episodePath ? `/phim/${item.movieSlug}/${item.episodePath}` : `/phim/${item.movieSlug}`;
-  const dateStr = new Date(item.watchedAt).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+function MovieCard({ item }: { item: FavoriteItem }) {
   return (
-    <Link href={href} className="group block shrink-0 w-[120px] sm:w-[140px]" key={`${item.movieSlug}-${item.watchedAt}`}>
+    <Link href={`/phim/${item.movieSlug}`} className="group block shrink-0 w-[120px] sm:w-[140px]" key={item.movieSlug}>
       <div className="relative aspect-2/3 rounded-xl overflow-hidden bg-white/10">
         {item.posterUrl ? (
           <img src={item.posterUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" />
@@ -25,26 +22,32 @@ function MovieCard({ item }: { item: WatchHistoryItem }) {
           <div className="absolute inset-0 flex items-center justify-center text-white/30 text-xs">No image</div>
         )}
       </div>
-      <p className="mt-2 text-white/90 text-sm font-medium line-clamp-2 group-hover:text-[#ff2a14] transition-colors">{item.movieTitle}</p>
-      <p className="text-white/50 text-xs mt-0.5">{item.episodePath ? `Đã xem · ${dateStr}` : dateStr}</p>
+      <p className="mt-2 text-white/90 text-sm font-medium line-clamp-2 group-hover:text-[#ff2a14] transition-colors">{item.movieTitle || item.movieSlug}</p>
     </Link>
   );
 }
 
-export default function WatchHistorySection({ items }: { items: WatchHistoryItem[] }) {
+export default function FavoritesSection({ items }: { items: FavoriteItem[] }) {
   const [expanded, setExpanded] = useState(false);
-  if (items.length === 0) return null;
+  if (items.length === 0) {
+    return (
+      <section className="w-full mb-8">
+        <h2 className="text-base font-bold text-white uppercase tracking-wider mb-4">Yêu thích</h2>
+        <p className="text-white/50 text-sm">Chưa có phim yêu thích. Thêm từ trang phim bằng nút Yêu thích.</p>
+      </section>
+    );
+  }
   const rowItems = items.slice(0, ROW_LIMIT);
   const hasMore = items.length > ROW_LIMIT;
 
   return (
     <section className="w-full mb-8">
-      <h2 className="text-base font-bold text-white uppercase tracking-wider mb-4">Lịch sử xem</h2>
+      <h2 className="text-base font-bold text-white uppercase tracking-wider mb-4">Yêu thích</h2>
       {expanded ? (
         <>
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4 md:gap-5">
             {items.map((item) => (
-              <MovieCard key={`${item.movieSlug}-${item.watchedAt}`} item={item} />
+              <MovieCard key={item.movieSlug} item={item} />
             ))}
           </div>
           <button
@@ -60,7 +63,7 @@ export default function WatchHistorySection({ items }: { items: WatchHistoryItem
           <div className="overflow-x-auto pb-2 -mx-1">
             <div className="flex gap-4 md:gap-5 min-w-0">
               {rowItems.map((item) => (
-                <MovieCard key={`${item.movieSlug}-${item.watchedAt}`} item={item} />
+                <MovieCard key={item.movieSlug} item={item} />
               ))}
             </div>
           </div>

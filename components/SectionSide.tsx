@@ -10,25 +10,25 @@ export default function SectionSide({ item }: { item: SectionData }) {
   if (!movies.length) return null;
 
   return (
-    <section className="mb-10 flex flex-col lg:flex-row gap-6">
+    <section className="mb-8 flex flex-col lg:flex-row gap-5">
       <div className="flex-1">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-bold text-white flex items-center gap-2">
             <span className="text-[#FF0000]">◆</span> {item.label}
           </h2>
           <Link href={link} className="text-sm text-[#ff2a14] hover:underline" title={item.label}>
             Xem thêm →
           </Link>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 md:gap-5">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2 sm:gap-3">
           {movies.map((movie) => (
             <MovieCard key={movie.id} movie={movie} />
           ))}
         </div>
       </div>
       {topview.length > 0 && (
-        <aside className="w-full lg:w-72 shrink-0">
-          <h2 className="text-lg font-bold text-white mb-3">Top</h2>
+        <aside className="w-full lg:w-64 shrink-0">
+          <h2 className="text-base font-bold text-white mb-2">Top</h2>
           <div className="bg-[#25252b] rounded-lg p-3 space-y-2">
             {topview.map((movie, idx) => {
               const key = idx + 1;

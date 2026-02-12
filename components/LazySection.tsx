@@ -3,7 +3,13 @@
 import LazyWhenInView from "./LazyWhenInView";
 import SectionThumb from "./SectionThumb";
 import SectionSide from "./SectionSide";
+import SectionNewUpdates from "./SectionNewUpdates";
 import type { SectionData } from "@/types";
+
+function isNewUpdatesSection(item: SectionData): boolean {
+  const label = (item.label || "").toLowerCase();
+  return label.includes("cập nhật") || label.includes("moi cap nhat");
+}
 
 export default function LazySection({
   item,
@@ -19,7 +25,9 @@ export default function LazySection({
   return (
     <LazyWhenInView placeholder={placeholder}>
       {() =>
-        showTemplate === "section_side" ? (
+        isNewUpdatesSection(item) ? (
+          <SectionNewUpdates item={item} />
+        ) : showTemplate === "section_side" ? (
           <SectionSide item={item} />
         ) : (
           <SectionThumb item={item} />

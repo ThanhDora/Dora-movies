@@ -215,8 +215,8 @@ export default function Header({
             </nav>
             <div className="hidden md:flex items-center gap-2 shrink-0">
               {status === "loading" ? null : session?.user ? (
-                <Link href="/profile" className="flex items-center gap-2 px-2.5 py-2 text-white/90 font-bold text-sm hover:text-[#ff2a14] transition-colors whitespace-nowrap min-w-0 truncate max-w-[180px]" title={session.user.name || session.user.email}>
-                  <span className="w-8 h-8 rounded-full bg-white/10 border border-white/20 overflow-hidden flex items-center justify-center shrink-0">
+                <Link href="/profile" className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/10 text-white font-bold text-sm hover:bg-white/15 transition-colors whitespace-nowrap min-w-0 max-w-[200px]" title="Trang cá nhân">
+                  <span className="w-8 h-8 rounded-full bg-white/20 overflow-hidden flex items-center justify-center shrink-0 border border-white/10">
                     {session.user.image ? (
                       session.user.image.startsWith("data:") ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -225,22 +225,20 @@ export default function Header({
                         <Image src={session.user.image} alt="" width={32} height={32} className="w-full h-full object-cover" />
                       )
                     ) : (
-                      <span className="text-sm text-white/80">
+                      <span className="text-sm text-white/90">
                         {(session.user.name || session.user.email || "?").charAt(0).toUpperCase()}
                       </span>
                     )}
                   </span>
-                  Trang cá nhân
+                  <span className="truncate">{session.user.name || session.user.email || "Tài khoản"}</span>
                 </Link>
               ) : (
-                <>
-                  <Link href="/login" className="px-2.5 py-2 text-white/90 font-bold text-sm hover:text-[#ff2a14] transition-colors whitespace-nowrap shrink-0">
-                    Đăng nhập
-                  </Link>
-                  <Link href="/register" className="px-2.5 py-2 text-white/90 font-bold text-sm hover:text-[#ff2a14] transition-colors whitespace-nowrap shrink-0">
-                    Đăng ký
-                  </Link>
-                </>
+                <Link href="/login" className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 text-white font-bold text-sm hover:bg-white/15 hover:text-white transition-colors whitespace-nowrap shrink-0">
+                  <svg className="w-5 h-5 shrink-0 text-white/90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  Thành viên
+                </Link>
               )}
             </div>
             <Link
@@ -276,7 +274,7 @@ export default function Header({
             </div>
             <div className="overflow-auto px-3 py-3 flex flex-col gap-2">
               {status === "loading" ? null : session?.user ? (
-                <Link href="/profile" className="flex items-center gap-3 w-full min-h-[48px] px-4 py-3 rounded-xl bg-white text-[#0a0a0c] font-bold text-sm shrink-0" onClick={closeMenu}>
+                <Link href="/profile" className="flex items-center gap-3 w-full min-h-[48px] px-4 py-3 rounded-xl bg-white text-[#0a0a0c] font-bold text-sm shrink-0 min-w-0" onClick={closeMenu} title="Trang cá nhân">
                   <span className="w-9 h-9 rounded-full bg-white/20 overflow-hidden flex items-center justify-center shrink-0">
                     {session.user.image ? (
                       session.user.image.startsWith("data:") ? (
@@ -289,7 +287,7 @@ export default function Header({
                       <span className="text-xs text-[#0a0a0c]/80">{(session.user.name || session.user.email || "?").charAt(0).toUpperCase()}</span>
                     )}
                   </span>
-                  Trang cá nhân
+                  <span className="truncate">{session.user.name || session.user.email || "Tài khoản"}</span>
                 </Link>
               ) : (
                 <Link href="/login" className="flex items-center gap-3 w-full min-h-[48px] px-4 py-3 rounded-xl bg-white text-[#0a0a0c] font-bold text-sm shrink-0" onClick={closeMenu}>
