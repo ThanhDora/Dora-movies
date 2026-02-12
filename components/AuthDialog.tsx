@@ -283,8 +283,11 @@ export default function AuthDialog({
                     try {
                       await signInWithGoogle();
                     } catch (e) {
+                      const err = e as Error & { digest?: string };
+                      if (err.digest?.startsWith("NEXT_REDIRECT")) {
+                        return;
+                      }
                       setGoogleLoading(false);
-                      const err = e as Error;
                       if (err.message?.includes("redirect_uri_mismatch") || err.message?.includes("invalid_client")) {
                         setLoginError("Lỗi cấu hình Google OAuth. Vui lòng kiểm tra redirect URI trong Google Cloud Console.");
                       } else if (err.message?.includes("chưa được cấu hình")) {
@@ -435,8 +438,11 @@ export default function AuthDialog({
                     try {
                       await signInWithGoogle();
                     } catch (e) {
+                      const err = e as Error & { digest?: string };
+                      if (err.digest?.startsWith("NEXT_REDIRECT")) {
+                        return;
+                      }
                       setGoogleLoading(false);
-                      const err = e as Error;
                       if (err.message?.includes("redirect_uri_mismatch") || err.message?.includes("invalid_client")) {
                         setRegisterError("Lỗi cấu hình Google OAuth. Vui lòng kiểm tra redirect URI trong Google Cloud Console.");
                       } else if (err.message?.includes("chưa được cấu hình")) {

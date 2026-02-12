@@ -49,13 +49,18 @@ console.log("[NextAuth] Google OAuth Config:", {
   nodeEnv: process.env.NODE_ENV,
 });
 
+if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+  throw new Error("GOOGLE_CLIENT_ID và GOOGLE_CLIENT_SECRET phải được cấu hình trong environment variables");
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   secret,
   trustHost: true,
+  debug: process.env.NODE_ENV === "development",
   providers: [
     Google({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       allowDangerousEmailAccountLinking: true,
     }),
     Facebook({
@@ -95,6 +100,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (account?.provider === "credentials") {
         if (user?.email) sendLoginNotificationEmail(user.email).catch(() => {});
         return true;
+      }
+      if (account?.provider === "google") {
+        if (!user.email || !account?.providerAccountId) {
+          console.error("[NextAuth] Google signIn: missing email or providerAccountId", { email: user.email, providerAccountId: account?.providerAccountId });
+          return false;
+        }
+        try {
+          const authId = `${account.provider}_${account.providerAccountId}`;
+          const name = user.name ?? (profile as { name?: string })?.name ?? null;
+          const image = user.image ?? (profile as { picture?: string })?.picture ?? null;
+          await upsertUserFromAuth({ authId, email: user.email, name, image });
+          if (user.email) sendLoginNotificationEmail(user.email).catch(() => {});
+          return true;
+        } catch (e) {
+          console.error("[NextAuth] Google signIn callback error:", e);
+          throw e;
+        }
       }
       if (!user.email || !account?.providerAccountId) return false;
       const authId = `${account.provider}_${account.providerAccountId}`;
