@@ -35,32 +35,31 @@ const secret =
 
 const isDevelopment = process.env.NODE_ENV === "development";
 
-if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-}
-
-const nextAuthUrl = process.env.NEXTAUTH_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+const nextAuthUrl =
+  process.env.NEXTAUTH_URL ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 const googleCallbackUrl = `${nextAuthUrl}/api/auth/callback/google`;
 
-if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-  throw new Error("GOOGLE_CLIENT_ID và GOOGLE_CLIENT_SECRET phải được cấu hình trong environment variables");
-}
-
-export const { handlers, auth, signIn, signOut } = NextAuth({
-  secret,
-  trustHost: true,
-  debug: isDevelopment,
-  providers: [
-    Google({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      allowDangerousEmailAccountLinking: true,
-    }),
-    Facebook({
-      clientId: process.env.FACEBOOK_CLIENT_ID!,
-      clientSecret: process.env.FACEBOOK_CLIENT_SECRET!,
-      allowDangerousEmailAccountLinking: true,
-    }),
-    Credentials({
+const providers = [
+  ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+    ? [
+        Google({
+          clientId: process.env.GOOGLE_CLIENT_ID,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          allowDangerousEmailAccountLinking: true,
+        }),
+      ]
+    : []),
+  ...(process.env.FACEBOOK_CLIENT_ID && process.env.FACEBOOK_CLIENT_SECRET
+    ? [
+        Facebook({
+          clientId: process.env.FACEBOOK_CLIENT_ID,
+          clientSecret: process.env.FACEBOOK_CLIENT_SECRET,
+          allowDangerousEmailAccountLinking: true,
+        }),
+      ]
+    : []),
+  Credentials({
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Mật khẩu", type: "password" },
@@ -86,7 +85,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return { id: user.id, email: user.email, name: user.name, image: user.image };
       },
     }),
-  ],
+];
+
+export const { handlers, auth, signIn, signOut } = NextAuth({
+  secret,
+  trustHost: true,
+  debug: isDevelopment,
+  providers,
   callbacks: {
     async signIn({ user, account, profile }) {
       if (account?.provider === "credentials") {
@@ -124,6 +129,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           if (dbUser) {
             token.role = dbUser.role;
             token.vip_until = dbUser.vip_until;
+            // Đồng bộ lại tên & avatar mới nhất từ DB
+            token.name = dbUser.name ?? token.name;
+            (token as { picture?: string | null }).picture = dbUser.image ?? (token as { picture?: string | null }).picture ?? null;
           }
         } catch {
           //
@@ -135,6 +143,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             token.userId = dbUser.id;
             token.role = dbUser.role;
             token.vip_until = dbUser.vip_until;
+            // Đồng bộ lại tên & avatar khi tìm bằng email
+            token.name = dbUser.name ?? token.name;
+            (token as { picture?: string | null }).picture = dbUser.image ?? (token as { picture?: string | null }).picture ?? null;
           }
         } catch {
           //
@@ -143,26 +154,40 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return token;
     },
     async session({ session, token }) {
-      if (session.user) {
-        if (token.userId) {
-          session.user.id = token.userId as string;
-          session.user.role = (token.role as UserRole) ?? "free";
-          session.user.vip_until = (token.vip_until as string | null) ?? null;
-        } else if (token.email) {
-          try {
-            const dbUser = await getUserByEmail(token.email);
-            if (dbUser) {
-              session.user.id = dbUser.id;
-              session.user.role = dbUser.role;
-              session.user.vip_until = dbUser.vip_until;
-            }
-          } catch {
-            //
+      if (!session.user) return session;
+
+      // Luôn cố gắng lấy user mới nhất từ DB để đảm bảo name & image vừa cập nhật được phản ánh ngay
+      if (token.userId) {
+        try {
+          const dbUser = await getUserById(token.userId as string);
+          if (dbUser) {
+            session.user.id = dbUser.id;
+            session.user.email = dbUser.email;
+            session.user.role = dbUser.role;
+            session.user.vip_until = dbUser.vip_until;
+            session.user.name = dbUser.name;
+            session.user.image = dbUser.image;
+            return session;
           }
-        }
-        if (!session.user.id) {
+        } catch {
+          // nếu lỗi DB thì fallback xuống dữ liệu từ token
         }
       }
+
+      if (token.userId) {
+        session.user.id = token.userId as string;
+      }
+      session.user.role = (token.role as UserRole) ?? session.user.role ?? "free";
+      session.user.vip_until = (token.vip_until as string | null) ?? session.user.vip_until ?? null;
+
+      if (typeof token.name === "string") {
+        session.user.name = token.name;
+      }
+      const picture = (token as { picture?: string | null }).picture;
+      if (typeof picture === "string" && picture) {
+        session.user.image = picture;
+      }
+
       return session;
     },
   },
