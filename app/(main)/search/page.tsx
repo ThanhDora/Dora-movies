@@ -41,7 +41,7 @@ export default function SearchPage() {
         .then((data) => setResults(data || []))
         .catch(() => setResults([]))
         .finally(() => setLoading(false));
-    }, 300);
+    }, 3000);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
