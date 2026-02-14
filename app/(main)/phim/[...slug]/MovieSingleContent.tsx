@@ -35,6 +35,16 @@ function groupByName(eps: Episode[]): Map<string, Episode[]> {
   return m;
 }
 
+/** Hiển thị tên server: "Mùa 1" → "Phần 1", "Phần 1" giữ nguyên, tên khác (VieON...) giữ nguyên. */
+function formatPartLabel(serverName: string): string {
+  if (!serverName || serverName === "Unknown") return "Phần 1";
+  const muaMatch = serverName.match(/^Mùa\s*(\d+)$/i);
+  if (muaMatch) return `Phần ${muaMatch[1]}`;
+  const phanMatch = serverName.match(/^Phần\s*(\d+)$/i);
+  if (phanMatch) return `Phần ${phanMatch[1]}`;
+  return serverName;
+}
+
 type TabId = "episodes" | "gallery" | "actors" | "suggestions";
 
 export default function MovieSingleContent({
@@ -66,10 +76,10 @@ export default function MovieSingleContent({
     return m;
   }, [episodes]);
   const serverNames = Array.from(byServer.keys()).sort();
-  const firstServerList = serverNames.length > 0 ? byServer.get(serverNames[0]) || [] : [];
-  const byName = useMemo(() => groupByName(firstServerList), [firstServerList]);
+  const [activePart, setActivePart] = useState<string>(serverNames[0] ?? "");
+  const currentPartList = serverNames.length > 0 ? byServer.get(activePart) || [] : [];
+  const byName = useMemo(() => groupByName(currentPartList), [currentPartList]);
   const episodeNames = Array.from(byName.keys()).sort((a, b) => {
-    // Sort numeric tốt hơn (Tập 1, Tập 2, Tập 10 không bị 1, 10, 2)
     const numA = parseInt(a.replace(/[^0-9]/g, "") || "0");
     const numB = parseInt(b.replace(/[^0-9]/g, "") || "0");
     return numA - numB || a.localeCompare(b);
@@ -77,8 +87,16 @@ export default function MovieSingleContent({
   const hasEpisodes = episodeNames.length > 0;
   const EPISODES_VISIBLE = 24;
   const [episodesExpanded, setEpisodesExpanded] = useState(false);
+  const [partDropdownOpen, setPartDropdownOpen] = useState(false);
   const episodeNamesToShow = episodesExpanded ? episodeNames : episodeNames.slice(0, EPISODES_VISIBLE);
   const hasMoreEpisodes = episodeNames.length > EPISODES_VISIBLE;
+
+  // Đồng bộ activePart khi serverNames thay đổi (e.g. data load)
+  useEffect(() => {
+    if (serverNames.length > 0 && !serverNames.includes(activePart)) {
+      setActivePart(serverNames[0]);
+    }
+  }, [serverNames.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fix "Đã chiếu" không crash khi no episodes
   const lastEpisodeName = episodeNames.length > 0 ? episodeNames[episodeNames.length - 1] : null;
@@ -335,7 +353,39 @@ export default function MovieSingleContent({
                 {activeTab === "episodes" && (
                   <div>
                     <div className="flex flex-wrap items-center gap-2 mb-4">
-                      <span className="text-white/70 text-sm font-medium">MÙA 1</span>
+                      {serverNames.length > 1 ? (
+                        <div className="relative shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setPartDropdownOpen((o) => !o)}
+                            className="flex items-center gap-2 min-h-[40px] pl-3 pr-2.5 py-2 rounded-xl bg-[#25252b] text-white/90 font-medium text-sm border border-white/10"
+                          >
+                            <span className="max-w-[140px] truncate">{formatPartLabel(activePart)}</span>
+                            <svg className={`w-4 h-4 shrink-0 transition-transform ${partDropdownOpen ? "rotate-180" : ""}`} fill="currentColor" viewBox="0 0 12 12">
+                              <path d="M6 8L1 3h10z" />
+                            </svg>
+                          </button>
+                          {partDropdownOpen && (
+                            <>
+                              <div className="fixed inset-0 z-10" onClick={() => setPartDropdownOpen(false)} aria-hidden />
+                              <div className="absolute left-0 top-full mt-1 py-2 bg-[#25252b] rounded-xl shadow-xl border border-white/10 z-20 min-w-[160px] max-h-[220px] overflow-auto">
+                                {serverNames.map((s) => (
+                                  <button
+                                    key={s}
+                                    type="button"
+                                    onClick={() => { setActivePart(s); setPartDropdownOpen(false); }}
+                                    className={`w-full text-left px-4 py-2.5 text-sm ${activePart === s ? "bg-white/15 text-white" : "text-white/80 hover:bg-white/10"}`}
+                                  >
+                                    {formatPartLabel(s)}
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-white/70 text-sm font-medium">{formatPartLabel(activePart)}</span>
+                      )}
                       <button type="button" className="min-h-[40px] px-3 py-2 rounded-xl bg-[#25252b] text-white/80 text-sm font-medium">
                         PHỤ ĐỀ
                       </button>

@@ -259,6 +259,16 @@ function groupEpisodesByServer(episodes: Episode[]): Map<string, Episode[]> {
   return byServer;
 }
 
+/** Hiển thị tên server: "Mùa 1" → "Phần 1", "Phần 1" giữ nguyên. */
+function formatPartLabel(serverName: string): string {
+  if (!serverName || serverName === "Unknown") return "Phần 1";
+  const muaMatch = serverName.match(/^Mùa\s*(\d+)$/i);
+  if (muaMatch) return `Phần ${muaMatch[1]}`;
+  const phanMatch = serverName.match(/^Phần\s*(\d+)$/i);
+  if (phanMatch) return `Phần ${phanMatch[1]}`;
+  return serverName;
+}
+
 function groupByName(eps: Episode[]): Map<string, Episode[]> {
   const byName = new Map<string, Episode[]>();
   eps.forEach((ep) => {
@@ -654,7 +664,7 @@ export default function EpisodeContent({
                   onClick={() => setSeasonOpen((o) => !o)}
                   className="flex items-center gap-2 min-h-[44px] pl-4 pr-3 py-2 rounded-xl bg-[#25252b] text-white font-medium text-sm border border-white/10"
                 >
-                  <span className="max-w-[120px] sm:max-w-none truncate">{activeServer}</span>
+                  <span className="max-w-[120px] sm:max-w-none truncate">{formatPartLabel(activeServer)}</span>
                   <svg className={`w-4 h-4 shrink-0 transition-transform ${seasonOpen ? "rotate-180" : ""}`} fill="currentColor" viewBox="0 0 12 12">
                     <path d="M6 8L1 3h10z" />
                   </svg>
@@ -670,7 +680,7 @@ export default function EpisodeContent({
                           onClick={() => selectServerAndGoFirst(s)}
                           className={`w-full text-left px-4 py-2.5 text-sm ${activeServer === s ? "bg-white/15 text-white" : "text-white/80 hover:bg-white/10"}`}
                         >
-                          {s}
+                          {formatPartLabel(s)}
                         </button>
                       ))}
                     </div>
