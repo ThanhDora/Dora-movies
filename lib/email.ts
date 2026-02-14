@@ -10,6 +10,19 @@ function getBaseUrl(): string {
   return "http://localhost:3000";
 }
 
+// Palette email (tương thích client, inline-only) — accent đỏ đồng bộ với site
+const EMAIL = {
+  bg: "#0c0c0e",
+  card: "#16161a",
+  cardBorder: "#25252a",
+  accent: "#ff2a14",
+  accentDark: "#e02512",
+  text: "#e4e4e7",
+  textMuted: "#a1a1aa",
+  textFooter: "#71717a",
+  danger: "#f87171",
+} as const;
+
 function getEmailTemplate(content: string, buttonText?: string, buttonUrl?: string): string {
   return `
 <!DOCTYPE html>
@@ -17,39 +30,46 @@ function getEmailTemplate(content: string, buttonText?: string, buttonUrl?: stri
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <title>${siteName}</title>
+  <!--[if mso]>
+  <noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+  <![endif]-->
 </head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #0a0a0c;">
-  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #0a0a0c; padding: 20px;">
+<body style="margin:0;padding:0;background-color:${EMAIL.bg};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:${EMAIL.bg};">
     <tr>
-      <td align="center" style="padding: 40px 20px;">
-        <table role="presentation" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #1a1a1f; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);">
+      <td align="center" style="padding:32px 16px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:520px;width:100%;background-color:${EMAIL.card};border:1px solid ${EMAIL.cardBorder};border-radius:12px;overflow:hidden;">
+          <!-- Header -->
           <tr>
-            <td style="background: linear-gradient(135deg, #e6b800 0%, #d4a800 100%); padding: 40px 30px; text-align: center;">
-              <h1 style="margin: 0; color: #0a0a0c; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">${siteName}</h1>
+            <td style="padding:28px 24px 24px;text-align:center;border-bottom:1px solid ${EMAIL.cardBorder};">
+              <h1 style="margin:0;color:${EMAIL.accent};font-size:24px;font-weight:700;letter-spacing:-0.02em;">${siteName}</h1>
+              <p style="margin:6px 0 0;color:${EMAIL.textMuted};font-size:13px;font-weight:400;">Email từ hệ thống</p>
             </td>
           </tr>
+          <!-- Body -->
           <tr>
-            <td style="padding: 40px 30px;">
-              <div style="color: #e0e0e0; font-size: 16px; line-height: 1.6;">
+            <td style="padding:28px 24px;">
+              <div style="color:${EMAIL.text};font-size:15px;line-height:1.65;">
                 ${content}
               </div>
               ${buttonText && buttonUrl ? `
-              <table role="presentation" style="width: 100%; margin: 30px 0;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-top:28px;">
                 <tr>
                   <td align="center">
-                    <a href="${buttonUrl}" style="display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #e6b800 0%, #d4a800 100%); color: #0a0a0c; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; transition: all 0.3s ease;">${buttonText}</a>
+                    <a href="${buttonUrl}" style="display:inline-block;padding:14px 28px;background-color:${EMAIL.accent};color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:15px;">${buttonText}</a>
                   </td>
                 </tr>
               </table>
-              ` : ''}
+              ` : ""}
             </td>
           </tr>
+          <!-- Footer -->
           <tr>
-            <td style="padding: 30px; background-color: #151518; border-top: 1px solid #2a2a2f;">
-              <p style="margin: 0; color: #888; font-size: 14px; text-align: center; line-height: 1.5;">
-                Email này được gửi tự động từ hệ thống ${siteName}.<br>
-                Nếu bạn không thực hiện hành động này, vui lòng bỏ qua email này.
+            <td style="padding:20px 24px;background-color:${EMAIL.bg};border-top:1px solid ${EMAIL.cardBorder};">
+              <p style="margin:0;color:${EMAIL.textFooter};font-size:12px;text-align:center;line-height:1.5;">
+                Email tự động từ ${siteName}. Nếu không phải bạn thực hiện, hãy bỏ qua.
               </p>
             </td>
           </tr>
@@ -65,10 +85,10 @@ function getEmailTemplate(content: string, buttonText?: string, buttonUrl?: stri
 export async function sendVerificationEmail(email: string, token: string): Promise<boolean> {
   const url = `${getBaseUrl()}/api/verify-email?token=${encodeURIComponent(token)}`;
   const content = `
-    <p style="margin: 0 0 20px 0; color: #e0e0e0; font-size: 18px; font-weight: 600;">Xin chào!</p>
-    <p style="margin: 0 0 20px 0; color: #c0c0c0;">Cảm ơn bạn đã đăng ký tài khoản tại <strong style="color: #e6b800;">${siteName}</strong>.</p>
-    <p style="margin: 0 0 20px 0; color: #c0c0c0;">Để hoàn tất quá trình đăng ký, vui lòng xác minh địa chỉ email của bạn bằng cách nhấn vào nút bên dưới:</p>
-    <p style="margin: 20px 0; color: #888; font-size: 14px;">⚠️ Link xác minh có hiệu lực trong <strong style="color: #e6b800;">24 giờ</strong>. Sau thời gian này, bạn sẽ cần yêu cầu gửi lại email xác minh.</p>
+    <p style="margin:0 0 16px 0;color:${EMAIL.text};font-size:17px;font-weight:600;">Xin chào!</p>
+    <p style="margin:0 0 16px 0;color:${EMAIL.text};">Cảm ơn bạn đã đăng ký tại <strong style="color:${EMAIL.accent};">${siteName}</strong>.</p>
+    <p style="margin:0 0 16px 0;color:${EMAIL.text};">Nhấn nút bên dưới để xác minh địa chỉ email của bạn:</p>
+    <p style="margin:16px 0 0;color:${EMAIL.textMuted};font-size:13px;">Link xác minh có hiệu lực <strong style="color:${EMAIL.accent};">24 giờ</strong>. Sau đó bạn cần yêu cầu gửi lại email.</p>
   `;
   const html = getEmailTemplate(content, "Xác minh email", url);
   if (!resendApiKey) {
@@ -77,7 +97,6 @@ export async function sendVerificationEmail(email: string, token: string): Promi
   try {
     const resend = new Resend(resendApiKey);
     const from = fromEmail.includes("<") ? fromEmail : `${siteName} <${fromEmail}>`;
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { data, error } = await resend.emails.send({
       from,
       to: [email],
@@ -96,10 +115,10 @@ export async function sendVerificationEmail(email: string, token: string): Promi
 export async function sendPasswordResetEmail(email: string, token: string): Promise<boolean> {
   const url = `${getBaseUrl()}/reset-password?token=${encodeURIComponent(token)}`;
   const content = `
-    <p style="margin: 0 0 20px 0; color: #e0e0e0; font-size: 18px; font-weight: 600;">Xin chào!</p>
-    <p style="margin: 0 0 20px 0; color: #c0c0c0;">Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn tại <strong style="color: #e6b800;">${siteName}</strong>.</p>
-    <p style="margin: 0 0 20px 0; color: #c0c0c0;">Nhấn vào nút bên dưới để tạo mật khẩu mới:</p>
-    <p style="margin: 20px 0; color: #888; font-size: 14px;">⚠️ Link đặt lại mật khẩu có hiệu lực trong <strong style="color: #e6b800;">1 giờ</strong>. Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này và mật khẩu của bạn sẽ không thay đổi.</p>
+    <p style="margin:0 0 16px 0;color:${EMAIL.text};font-size:17px;font-weight:600;">Xin chào!</p>
+    <p style="margin:0 0 16px 0;color:${EMAIL.text};">Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản tại <strong style="color:${EMAIL.accent};">${siteName}</strong>.</p>
+    <p style="margin:0 0 16px 0;color:${EMAIL.text};">Nhấn nút bên dưới để tạo mật khẩu mới:</p>
+    <p style="margin:16px 0 0;color:${EMAIL.textMuted};font-size:13px;">Link có hiệu lực <strong style="color:${EMAIL.accent};">1 giờ</strong>. Nếu không phải bạn yêu cầu, hãy bỏ qua email này.</p>
   `;
   const html = getEmailTemplate(content, "Đặt lại mật khẩu", url);
   if (!resendApiKey) return false;
@@ -118,22 +137,42 @@ export async function sendPasswordResetEmail(email: string, token: string): Prom
   }
 }
 
+/** Format thời gian theo múi giờ Việt Nam (UTC+7). */
+function formatVietnamTime(date: Date): string {
+  try {
+    const s = new Intl.DateTimeFormat("vi-VN", {
+      timeZone: "Asia/Ho_Chi_Minh",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(date);
+    if (s) return s;
+  } catch {
+    /* fallback bên dưới */
+  }
+  // Fallback: tính UTC+7 thủ công (server có thể thiếu ICU timezone)
+  const d = new Date(date.getTime() + 7 * 60 * 60 * 1000);
+  const day = d.getUTCDate();
+  const month = d.getUTCMonth() + 1;
+  const year = d.getUTCFullYear();
+  const hour = d.getUTCHours();
+  const minute = d.getUTCMinutes();
+  const monthNames = "tháng 1,tháng 2,tháng 3,tháng 4,tháng 5,tháng 6,tháng 7,tháng 8,tháng 9,tháng 10,tháng 11,tháng 12".split(",");
+  return `${day} ${monthNames[month - 1]} ${year}, ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
 export async function sendLoginNotificationEmail(email: string): Promise<boolean> {
-  const time = new Date().toLocaleString("vi-VN", {
-    timeZone: "Asia/Ho_Chi_Minh",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const time = formatVietnamTime(new Date());
   const content = `
-    <p style="margin: 0 0 20px 0; color: #e0e0e0; font-size: 18px; font-weight: 600;">Thông báo đăng nhập</p>
-    <p style="margin: 0 0 20px 0; color: #c0c0c0;">Chúng tôi ghi nhận một lần đăng nhập vào tài khoản của bạn tại <strong style="color: #e6b800;">${siteName}</strong>.</p>
-    <div style="background-color: #151518; border-left: 4px solid #e6b800; padding: 16px 20px; margin: 20px 0; border-radius: 4px;">
-      <p style="margin: 0; color: #e0e0e0; font-size: 16px;"><strong style="color: #e6b800;">Thời gian:</strong> ${time}</p>
+    <p style="margin:0 0 16px 0;color:${EMAIL.text};font-size:17px;font-weight:600;">Thông báo đăng nhập</p>
+    <p style="margin:0 0 16px 0;color:${EMAIL.text};">Có một lần đăng nhập vào tài khoản của bạn tại <strong style="color:${EMAIL.accent};">${siteName}</strong>.</p>
+    <div style="background-color:${EMAIL.bg};border-left:4px solid ${EMAIL.accent};padding:14px 18px;margin:18px 0;border-radius:6px;">
+      <p style="margin:0;color:${EMAIL.text};font-size:15px;"><strong style="color:${EMAIL.accent};">Thời gian:</strong> ${time}</p>
     </div>
-    <p style="margin: 20px 0; color: #888; font-size: 14px;">⚠️ Nếu bạn không thực hiện đăng nhập này, vui lòng <strong style="color: #e6b800;">đổi mật khẩu ngay lập tức</strong> để bảo vệ tài khoản của bạn.</p>
+    <p style="margin:16px 0 0;color:${EMAIL.textMuted};font-size:13px;">Nếu không phải bạn, hãy <strong style="color:${EMAIL.danger};">đổi mật khẩu ngay</strong> để bảo vệ tài khoản.</p>
   `;
   const html = getEmailTemplate(content);
   if (!resendApiKey) return false;
