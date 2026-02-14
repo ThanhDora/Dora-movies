@@ -13,14 +13,18 @@ export default function LoginSuccessToast() {
 
   useEffect(() => {
     if (searchParams.get("login") === "success") {
-      setShowLoginToast(true);
+      setTimeout(() => {
+        setShowLoginToast(true);
+      }, 0);
       const t = setTimeout(() => {
         router.replace(pathname || "/");
       }, 3000);
       return () => clearTimeout(t);
     }
     if (searchParams.get("logout") === "success") {
-      setShowLogoutToast(true);
+      setTimeout(() => {
+        setShowLogoutToast(true);
+      }, 0);
       const t = setTimeout(() => {
         router.replace(pathname || "/");
       }, 3000);

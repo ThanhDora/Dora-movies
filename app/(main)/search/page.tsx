@@ -3,17 +3,20 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { search } from "@/lib/api";
 import type { SearchResultItem } from "@/types";
 
 function SearchIcon() {
   return (
-    <svg className="w-5 h-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <svg className="w-5 h-5 text-white/60 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
     </svg>
   );
 }
+
+const SEARCH_DEBOUNCE_MS = 300;
+const URL_DEBOUNCE_MS = 400;
 
 export default function SearchPage() {
   const router = useRouter();
@@ -22,47 +25,55 @@ export default function SearchPage() {
   const [query, setQuery] = useState(initialQ);
   const [results, setResults] = useState<SearchResultItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const urlDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Chỉ đồng bộ từ URL vào input đúng một lần khi mount (khi vào trang hoặc back/forward)
   useEffect(() => {
     setQuery(initialQ);
-  }, [initialQ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  // Debounce gọi API search
   useEffect(() => {
     if (!query.trim()) {
       setResults([]);
       return;
     }
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
       setLoading(true);
       search(query)
         .then((data) => setResults(data || []))
         .catch(() => setResults([]))
         .finally(() => setLoading(false));
-    }, 3000);
+    }, SEARCH_DEBOUNCE_MS);
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     };
   }, [query]);
 
-  const updateUrl = useCallback(() => {
-    const q = query.trim();
-    if (q) {
-      router.replace(`/search?q=${encodeURIComponent(q)}`, { scroll: false });
-    } else {
-      router.replace("/search", { scroll: false });
-    }
+  // Debounce cập nhật URL để tránh re-render liên tục khi gõ (gây giật/nhảy chữ trên mobile)
+  useEffect(() => {
+    if (urlDebounceRef.current) clearTimeout(urlDebounceRef.current);
+    urlDebounceRef.current = setTimeout(() => {
+      const q = query.trim();
+      if (q) {
+        router.replace(`/search?q=${encodeURIComponent(q)}`, { scroll: false });
+      } else {
+        router.replace("/search", { scroll: false });
+      }
+    }, URL_DEBOUNCE_MS);
+    return () => {
+      if (urlDebounceRef.current) clearTimeout(urlDebounceRef.current);
+    };
   }, [query, router]);
 
+  // Focus input sau khi mount (trễ nhẹ tránh giật trên mobile)
   useEffect(() => {
-    if (!query.trim()) return;
-    updateUrl();
-  }, [query, updateUrl]);
-
-  useEffect(() => {
-    inputRef.current?.focus();
+    const t = setTimeout(() => inputRef.current?.focus(), 150);
+    return () => clearTimeout(t);
   }, []);
 
   return (
@@ -73,11 +84,14 @@ export default function SearchPage() {
           <input
             ref={inputRef}
             type="search"
-            className="flex-1 min-w-0 h-full bg-transparent text-white placeholder-white/50 text-base outline-none"
+            inputMode="search"
+            enterKeyHint="search"
+            className="flex-1 min-w-0 h-full bg-transparent text-white placeholder-white/50 text-base outline-none border-0"
             placeholder="Tìm phim..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             autoComplete="off"
+            aria-label="Tìm phim"
           />
           <Link
             href="/"
