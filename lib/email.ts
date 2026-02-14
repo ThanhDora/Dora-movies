@@ -77,6 +77,7 @@ export async function sendVerificationEmail(email: string, token: string): Promi
   try {
     const resend = new Resend(resendApiKey);
     const from = fromEmail.includes("<") ? fromEmail : `${siteName} <${fromEmail}>`;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { data, error } = await resend.emails.send({
       from,
       to: [email],
@@ -119,6 +120,7 @@ export async function sendPasswordResetEmail(email: string, token: string): Prom
 
 export async function sendLoginNotificationEmail(email: string): Promise<boolean> {
   const time = new Date().toLocaleString("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
     year: "numeric",
     month: "long",
     day: "numeric",
