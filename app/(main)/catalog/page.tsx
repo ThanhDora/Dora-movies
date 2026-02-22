@@ -20,6 +20,7 @@ export default async function CatalogPage({
   const years = typeof params.years === "string" ? params.years : undefined;
   const types = typeof params.types === "string" ? params.types : undefined;
   const sorts = typeof params.sorts === "string" ? params.sorts : undefined;
+  const danhmuc = typeof params.danhmuc === "string" ? params.danhmuc : undefined;
   const page = typeof params.page === "string" ? parseInt(params.page, 10) || 1 : 1;
 
   const sectionName =
@@ -35,7 +36,7 @@ export default async function CatalogPage({
       getCategories(),
       getRegions(),
       getYears(),
-      getCatalog({ search, categorys, regions, years, types, sorts, page }),
+      getCatalog({ search, categorys, regions, years, types, sorts, danhmuc, page }),
     ]);
     categories = catRes;
     regionsList = regRes;
@@ -52,6 +53,7 @@ export default async function CatalogPage({
   if (years) queryForPagination.years = years;
   if (types) queryForPagination.types = types;
   if (sorts) queryForPagination.sorts = sorts;
+  if (danhmuc) queryForPagination.danhmuc = danhmuc;
 
   return (
     <main className="w-full max-w-[1600px] mx-auto px-3 sm:px-4 py-4 sm:py-6">
@@ -68,6 +70,7 @@ export default async function CatalogPage({
               years={years}
               types={types}
               sorts={sorts}
+              danhmuc={danhmuc}
               categories={categories}
               regionsList={regionsList}
               yearsList={yearsList}

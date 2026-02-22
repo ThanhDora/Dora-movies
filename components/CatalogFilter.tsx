@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Category, Region } from "@/types";
+import { DANH_MUC_OPTIONS } from "@/types";
 
 interface CatalogFilterProps {
   search?: string;
@@ -11,6 +12,7 @@ interface CatalogFilterProps {
   years?: string;
   types?: string;
   sorts?: string;
+  danhmuc?: string;
   categories: Category[];
   regionsList: Region[];
   yearsList: number[];
@@ -38,6 +40,7 @@ export default function CatalogFilter({
   years,
   types,
   sorts,
+  danhmuc,
   categories,
   regionsList,
   yearsList,
@@ -45,7 +48,7 @@ export default function CatalogFilter({
 }: CatalogFilterProps) {
   const router = useRouter();
   const [filterOpen, setFilterOpen] = useState(false);
-  const current = { search, categorys, regions, years, types, sorts };
+  const current = { search, categorys, regions, years, types, sorts, danhmuc };
   const selectClass = "w-full mt-1 min-h-[44px] px-3 py-2.5 bg-[#232328] text-[#ededed] border border-[#3a3a3f] rounded-lg text-sm cursor-pointer focus:outline-none focus:border-[#0a5c6f] touch-manipulation";
 
   const handleChange = (key: keyof typeof current, value: string) => {
@@ -151,6 +154,26 @@ export default function CatalogFilter({
                 <option value="">Tất cả</option>
                 <option value="series">Phim bộ</option>
                 <option value="single">Phim lẻ</option>
+              </select>
+            )}
+          </div>
+          <div>
+            {field(
+              "filter-danhmuc",
+              "Danh mục",
+              <select
+                id="filter-danhmuc"
+                className={selectClass}
+                value={danhmuc ?? ""}
+                onChange={(e) => handleChange("danhmuc", e.target.value)}
+                aria-label="Chọn danh mục"
+              >
+                <option value="">Tất cả</option>
+                {DANH_MUC_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
               </select>
             )}
           </div>

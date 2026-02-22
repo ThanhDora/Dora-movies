@@ -13,6 +13,7 @@ import type {
   SearchResultItem,
   RateResponse,
 } from "@/types";
+import { DANH_MUC_OPTIONS } from "@/types";
 import { getApprovedMovieSlugs, getHiddenMovieSlugs } from "@/lib/db";
 import { cdnMovieUrl } from "./utils";
 
@@ -92,6 +93,11 @@ async function fetchApi<T>(path: string, options?: RequestInit, useCache = false
 }
 
 function emptyHomeData(): HomeData {
+  const danhMucMenu = DANH_MUC_OPTIONS.map((opt) => {
+    if (opt.value === "hoat-hinh") return { name: opt.label, link: "/danh-sach/hoat-hinh" };
+    if (opt.value === "sap-chieu") return { name: opt.label, link: "/danh-sach/phim-sap-chieu" };
+    return { name: opt.label, link: `/catalog?danhmuc=${encodeURIComponent(opt.value)}` };
+  });
   return {
     menu: [
       { name: "Trang chủ", link: "/" },
@@ -100,6 +106,7 @@ function emptyHomeData(): HomeData {
       { name: "Phim bộ", link: "/danh-sach/phim-bo" },
       { name: "TV Shows", link: "/danh-sach/tv-shows" },
       { name: "Thể loại", link: "/the-loai" },
+      { name: "Danh mục", link: "/catalog", children: danhMucMenu },
       { name: "Quốc gia", link: "/quoc-gia" },
     ],
     title: "Dora Movies",
@@ -280,7 +287,7 @@ function mapItemToMovie(item: OphimRawItem, cdnBase: string): Movie {
     tags: [],
     actors,
     directors,
-    episodes: Array.isArray(item.episodes) ? buildEpisodes(slug, item.episodes) : [],
+    episodes: Array.isArray(item.episodes) ? buildEpisodes(slug, item.episodes) : undefined,
     rating_star: 0,
     rating_count: 0,
   };
@@ -330,6 +337,51 @@ function toPaginatedResponse(
   };
 }
 
+function toPaginatedResponseFromMovies(
+  data: Movie[],
+  page: number,
+  perPage: number,
+  path: string,
+  query: Record<string, string>
+): PaginatedResponse<Movie> {
+  const totalItems = data.length;
+  const lastPage = Math.max(1, Math.ceil(totalItems / perPage));
+  const safePage = Math.max(1, Math.min(page, lastPage));
+  const start = (safePage - 1) * perPage;
+  const pageData = data.slice(start, start + perPage);
+  const make = (p: number) => {
+    const q = new URLSearchParams(query);
+    q.set("page", String(p));
+    return `${path}?${q.toString()}`;
+  };
+  const links: { url: string | null; label: string; active: boolean }[] = [];
+  const windowSize = 2;
+  const startP = Math.max(1, safePage - windowSize);
+  const endP = Math.min(lastPage, safePage + windowSize);
+  if (startP > 1) links.push({ url: make(1), label: "1", active: safePage === 1 });
+  if (startP > 2) links.push({ url: null, label: "...", active: false });
+  for (let p = startP; p <= endP; p++) {
+    links.push({ url: make(p), label: String(p), active: p === safePage });
+  }
+  if (endP < lastPage - 1) links.push({ url: null, label: "...", active: false });
+  if (endP < lastPage) links.push({ url: make(lastPage), label: String(lastPage), active: safePage === lastPage });
+  return {
+    data: pageData,
+    current_page: safePage,
+    last_page: lastPage,
+    per_page: perPage,
+    total: totalItems,
+    from: totalItems === 0 ? 0 : start + 1,
+    to: totalItems === 0 ? 0 : Math.min(start + perPage, totalItems),
+    path,
+    first_page_url: make(1),
+    last_page_url: make(lastPage),
+    next_page_url: safePage < lastPage ? make(safePage + 1) : null,
+    prev_page_url: safePage > 1 ? make(safePage - 1) : null,
+    links,
+  };
+}
+
 function mapSort(sorts?: string): { sort_field?: string; sort_type?: string } {
   if (sorts === "create") return { sort_field: "created.time", sort_type: "desc" };
   if (sorts === "year") return { sort_field: "year", sort_type: "desc" };
@@ -345,6 +397,46 @@ function filterByApproved<T extends { slug?: unknown }>(items: T[], approved: Se
     if (hidden.has(slug)) return false;
     return true;
   });
+}
+
+function normalizeForMatch(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function filterByDanhMuc(movie: Movie, danhmuc: string): boolean {
+  const lang = normalizeForMatch(movie.language || "");
+  const status = normalizeForMatch(movie.status || "");
+  const hasVideo = !movie.is_copyright && (movie.episodes?.length ?? 0) > 0;
+  const episodeCurrent = String(movie.episode_current ?? "").trim();
+  const categoryMatch = (nameOrSlug: string) => {
+    const n = normalizeForMatch(nameOrSlug);
+    return n.includes("hoat hinh") || n.includes("hoạt hình") || n.includes("animation") || n.includes("anime") || n === "hoat-hinh";
+  };
+  const hasCategory = (movie.categories ?? []).some((c) => categoryMatch(c.name || "") || categoryMatch(c.slug || ""));
+
+  switch (danhmuc) {
+    case "vietsub":
+      return lang.includes("vietsub") || lang.includes("viet sub");
+    case "thuyet-minh":
+      return lang.includes("thuyet minh") || lang.includes("thuyết minh") || lang.includes("tm");
+    case "long-tieng":
+      return lang.includes("long tieng") || lang.includes("lồng tiếng") || lang.includes("lt");
+    case "chieu-rap":
+      return status.includes("chieu rap") || status.includes("chiếu rạp") || status.includes("rap");
+    case "sap-chieu":
+      return !hasVideo || status.includes("sap chieu") || status.includes("sắp chiếu") || episodeCurrent === "0";
+    case "dang-chieu":
+      return hasVideo && (status.includes("dang chieu") || status.includes("đang chiếu") || episodeCurrent !== "0");
+    case "hoat-hinh":
+      return hasCategory;
+    default:
+      return true;
+  }
 }
 
 export async function getHome(): Promise<HomeData> {
@@ -385,6 +477,11 @@ export async function getHome(): Promise<HomeData> {
     return { name: String(row.name || ""), link: `/quoc-gia/${String(row.slug || "")}` };
   });
 
+  const danhMucMenu = DANH_MUC_OPTIONS.map((opt) => {
+    if (opt.value === "hoat-hinh") return { name: opt.label, link: "/danh-sach/hoat-hinh" };
+    if (opt.value === "sap-chieu") return { name: opt.label, link: "/danh-sach/phim-sap-chieu" };
+    return { name: opt.label, link: `/catalog?danhmuc=${encodeURIComponent(opt.value)}` };
+  });
   const menu = [
     { name: "Trang chủ", link: "/" },
     { name: "Cập nhật", link: "/danh-sach/phim-moi-cap-nhat" },
@@ -392,6 +489,7 @@ export async function getHome(): Promise<HomeData> {
     { name: "Phim bộ", link: "/danh-sach/phim-bo" },
     { name: "TV Shows", link: "/danh-sach/tv-shows" },
     { name: "Thể loại", link: "/the-loai", children: categoryMenu },
+    { name: "Danh mục", link: "/catalog", children: danhMucMenu },
     { name: "Quốc gia", link: "/quoc-gia", children: regionMenu },
   ];
 
@@ -479,20 +577,64 @@ export async function search(q: string): Promise<SearchResultItem[]> {
   }));
 }
 
+const DANHMUC_FETCH_PAGES = 10;
+
+function buildCatalogQuery(params: CatalogParams, pageNum: number): string {
+  const q = new URLSearchParams({ page: String(pageNum) });
+  if (params.categorys) q.set("category", params.categorys);
+  if (params.regions) q.set("country", params.regions);
+  if (params.years) q.set("year", params.years);
+  if (params.types) q.set("type", params.types);
+  const sort = mapSort(params.sorts);
+  if (sort.sort_field) q.set("sort_field", sort.sort_field);
+  if (sort.sort_type) q.set("sort_type", sort.sort_type);
+  return params.search
+    ? `/v1/api/tim-kiem?keyword=${encodeURIComponent(params.search)}&${q.toString()}`
+    : `/v1/api/danh-sach/phim-moi-cap-nhat?${q.toString()}`;
+}
+
 export async function getCatalog(
   params: CatalogParams
 ): Promise<PaginatedResponse<Movie>> {
   const page = params.page || 1;
+  const perPage = 25;
+  const query: Record<string, string> = {};
+  if (params.search) query.search = params.search;
+  if (params.categorys) query.categorys = params.categorys;
+  if (params.regions) query.regions = params.regions;
+  if (params.years) query.years = params.years;
+  if (params.types) query.types = params.types;
+  if (params.sorts) query.sorts = params.sorts;
+  if (params.danhmuc) query.danhmuc = params.danhmuc;
+
   if (!BASE) {
-    const query: Record<string, string> = {};
-    if (params.search) query.search = params.search;
-    if (params.categorys) query.categorys = params.categorys;
-    if (params.regions) query.regions = params.regions;
-    if (params.years) query.years = params.years;
-    if (params.types) query.types = params.types;
-    if (params.sorts) query.sorts = params.sorts;
-    return toPaginatedResponse([], "", 1, 0, 24, "/catalog", query);
+    return toPaginatedResponse([], "", 1, 0, perPage, "/catalog", query);
   }
+
+  if (params.danhmuc === "sap-chieu") {
+    const { data } = await getCatalogBySlug("phim-sap-chieu", page);
+    return { ...data, path: "/catalog", first_page_url: `/catalog?${new URLSearchParams({ ...query, page: "1" }).toString()}`, last_page_url: `/catalog?${new URLSearchParams({ ...query, page: String(data.last_page) }).toString()}`, next_page_url: data.current_page < data.last_page ? `/catalog?${new URLSearchParams({ ...query, page: String(data.current_page + 1) }).toString()}` : null, prev_page_url: data.current_page > 1 ? `/catalog?${new URLSearchParams({ ...query, page: String(data.current_page - 1) }).toString()}` : null, links: data.links.map((l) => ({ ...l, url: l.url && l.label && !Number.isNaN(Number(l.label)) ? `/catalog?${new URLSearchParams({ ...query, page: String(l.label) }).toString()}` : l.url })) };
+  }
+
+  if (params.danhmuc) {
+    const [approvedSet, hiddenSet] = await Promise.all([safeApprovedSlugs(), safeHiddenSlugs()]);
+    const pagesToFetch = Array.from({ length: DANHMUC_FETCH_PAGES }, (_, i) => i + 1);
+    const results = await Promise.all(
+      pagesToFetch.map((pageNum) =>
+        fetchApi<OphimV1List>(buildCatalogQuery(params, pageNum)).catch(() => ({ data: { items: [], APP_DOMAIN_CDN_IMAGE: "" } }))
+      )
+    );
+    const cdn = results.find((r) => r?.data?.APP_DOMAIN_CDN_IMAGE)?.data?.APP_DOMAIN_CDN_IMAGE ?? "";
+    const allItems: OphimRawItem[] = [];
+    for (const r of results) {
+      const items = (r?.data?.items ?? []) as OphimRawItem[];
+      allItems.push(...filterByApproved(items.filter((it): it is OphimRawItem & { slug: string } => typeof it.slug === "string"), approvedSet, hiddenSet));
+    }
+    const movies = allItems.map((it) => mapItemToMovie(it, cdn));
+    const filtered = movies.filter((m) => filterByDanhMuc(m, params.danhmuc!));
+    return toPaginatedResponseFromMovies(filtered, page, perPage, "/catalog", query);
+  }
+
   const q = new URLSearchParams({ page: String(page) });
   if (params.categorys) q.set("category", params.categorys);
   if (params.regions) q.set("country", params.regions);
@@ -501,7 +643,6 @@ export async function getCatalog(
   const sort = mapSort(params.sorts);
   if (sort.sort_field) q.set("sort_field", sort.sort_field);
   if (sort.sort_type) q.set("sort_type", sort.sort_type);
-
   const endpoint = params.search
     ? `/v1/api/tim-kiem?keyword=${encodeURIComponent(params.search)}&${q.toString()}`
     : `/v1/api/danh-sach/phim-moi-cap-nhat?${q.toString()}`;
@@ -512,26 +653,13 @@ export async function getCatalog(
     safeHiddenSlugs(),
   ]);
   const p = res.data.params.pagination;
-  const perPage = 25;
   const totalItems = p.totalItems ?? res.data.items.length;
   let items = res.data.items as OphimRawItem[];
   items = filterByApproved(items, approvedSet, hiddenSet);
-  
+
   if (items.length < perPage && page * p.totalItemsPerPage < totalItems) {
-    const nextPage = page + 1;
-    const nextQ = new URLSearchParams({ page: String(nextPage) });
-    if (params.categorys) nextQ.set("category", params.categorys);
-    if (params.regions) nextQ.set("country", params.regions);
-    if (params.years) nextQ.set("year", params.years);
-    if (params.types) nextQ.set("type", params.types);
-    const sort = mapSort(params.sorts);
-    if (sort.sort_field) nextQ.set("sort_field", sort.sort_field);
-    if (sort.sort_type) nextQ.set("sort_type", sort.sort_type);
-    const nextEndpoint = params.search
-      ? `/v1/api/tim-kiem?keyword=${encodeURIComponent(params.search)}&${nextQ.toString()}`
-      : `/v1/api/danh-sach/phim-moi-cap-nhat?${nextQ.toString()}`;
     try {
-      const nextRes = await fetchApi<OphimV1List>(nextEndpoint);
+      const nextRes = await fetchApi<OphimV1List>(buildCatalogQuery(params, page + 1));
       const nextItems = filterByApproved(nextRes.data.items as OphimRawItem[], approvedSet, hiddenSet);
       items = [...items, ...nextItems].slice(0, perPage);
     } catch {
@@ -540,14 +668,7 @@ export async function getCatalog(
   } else {
     items = items.slice(0, perPage);
   }
-  
-  const query: Record<string, string> = {};
-  if (params.search) query.search = params.search;
-  if (params.categorys) query.categorys = params.categorys;
-  if (params.regions) query.regions = params.regions;
-  if (params.years) query.years = params.years;
-  if (params.types) query.types = params.types;
-  if (params.sorts) query.sorts = params.sorts;
+
   return toPaginatedResponse(
     items as unknown[],
     res.data.APP_DOMAIN_CDN_IMAGE,

@@ -214,10 +214,14 @@ export default function MovieSingleContent({
             <div className="p-4 sm:p-6 lg:p-8 flex flex-col lg:flex-row gap-6">
               <div className="grid grid-cols-[auto_1fr] gap-4 flex-1 min-w-0 items-start">
                 <div className="relative w-[120px] sm:w-[160px] lg:w-[180px] aspect-2/3 rounded-xl overflow-hidden bg-[#232328] shadow-xl shrink-0">
-                  {watchUrl && (
+                  {watchUrl ? (
                     <Link href={watchUrl} className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 hover:opacity-100 transition-opacity z-10 text-white" title={currentMovie.name}>
                       <PlayIcon className="w-12 h-12" />
                     </Link>
+                  ) : (
+                    <div className="absolute top-2 right-2 px-2 py-1 text-xs font-semibold bg-amber-500/90 text-black rounded z-10">
+                      Sắp chiếu
+                    </div>
                   )}
                   <Image src={thumb} alt={currentMovie.name || "Poster"} width={180} height={270} unoptimized={thumb.startsWith("http")} className="object-cover w-full h-full" />
                 </div>

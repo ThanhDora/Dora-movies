@@ -130,8 +130,19 @@ export interface CatalogParams {
   years?: string;
   types?: string;
   sorts?: string;
+  danhmuc?: string;
   page?: number;
 }
+
+export const DANH_MUC_OPTIONS: { value: string; label: string }[] = [
+  { value: "vietsub", label: "Phim Vietsub" },
+  { value: "thuyet-minh", label: "Phim thuyết minh" },
+  { value: "long-tieng", label: "Phim lồng tiếng" },
+  { value: "chieu-rap", label: "Phim chiếu rạp" },
+  { value: "sap-chieu", label: "Phim sắp chiếu" },
+  { value: "dang-chieu", label: "Phim đang chiếu" },
+  { value: "hoat-hinh", label: "Phim hoạt hình" },
+];
 
 export interface PaginatedResponse<T> {
   data: T[];

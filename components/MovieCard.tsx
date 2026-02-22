@@ -17,20 +17,33 @@ const PlayIcon = memo(function PlayIcon() {
   );
 });
 
+function hasVideo(movie: Movie): boolean {
+  return !movie.is_copyright && (movie.episodes?.length ?? 0) > 0;
+}
+
+function isComingSoon(movie: Movie): boolean {
+  if (movie.episodes === undefined) return false;
+  return movie.episodes.length === 0 || !!movie.is_copyright;
+}
+
 function MovieCard({ movie }: { movie: Movie }) {
   const thumb = movie.thumb_url || movie.poster_url || "";
   const url = movie.url || `/phim/${movie.slug}`;
   const hasDirectors = movie.directors && Array.isArray(movie.directors) && movie.directors.length > 0;
   const hasActors = movie.actors && Array.isArray(movie.actors) && movie.actors.length > 0;
   const showAuthor = hasDirectors || hasActors;
+  const comingSoon = isComingSoon(movie);
+  const showPlay = hasVideo(movie) || movie.episodes === undefined;
 
   return (
     <div className="w-full min-w-0">
       <div className="group">
         <div className="relative aspect-2/3 rounded-lg overflow-hidden bg-[#232328]">
-          <Link href={url} title={movie.name} className="block absolute inset-0 z-10">
-            <PlayIcon />
-          </Link>
+          {showPlay && (
+            <Link href={url} title={movie.name} className="block absolute inset-0 z-10">
+              <PlayIcon />
+            </Link>
+          )}
           <Image
             src={thumb || LOADING_GIF}
             alt={movie.name}
@@ -50,7 +63,12 @@ function MovieCard({ movie }: { movie: Movie }) {
               : Boolean(movie.publish_year)
             ) && movie.publish_year && <span>{movie.publish_year}</span>}
           </div>
-          {movie.status && (
+          {comingSoon && (
+            <div className="absolute top-2 right-2 px-1.5 py-0.5 text-xs font-semibold bg-amber-500/90 text-black rounded">
+              Sắp chiếu
+            </div>
+          )}
+          {!comingSoon && movie.status && movie.episodes !== undefined && (
             <div className="absolute top-2 right-2 px-1.5 py-0.5 text-xs bg-[#ff2a14] text-white rounded">
               {movie.status}
             </div>

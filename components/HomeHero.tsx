@@ -132,6 +132,8 @@ export default function HomeHero({
   const thumb = featured.poster_url || featured.thumb_url || "";
   const movieUrl = featured.url || `/phim/${featured.slug}`;
   const content = featured.content ? stripHtml(featured.content) : "";
+  const currentWatchUrl = watchUrls.length === movies.length ? watchUrls[currentIndex] : undefined;
+  const comingSoon = currentWatchUrl !== undefined && !currentWatchUrl;
 
   return (
     <>
@@ -205,6 +207,11 @@ export default function HomeHero({
                 {featured.language && (
                   <span className="inline-flex items-center px-2 py-1 text-white text-xs font-semibold bg-[#f97316]/25 border border-[#f97316]/50">
                     {featured.language}
+                  </span>
+                )}
+                {comingSoon && (
+                  <span className="inline-flex items-center px-2 py-1 text-black text-xs font-semibold bg-amber-500/90 border border-amber-400">
+                    Sắp chiếu
                   </span>
                 )}
               </div>
